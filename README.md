@@ -46,32 +46,15 @@ Histrel is split into two applications that share one package:
   message containing the task, the recent observations, and the current
   repository state, so the prompt is bounded by design rather than by luck.
   `react` mode is retained as a baseline that replays the full history.
-- **Static tool set, passed directly.** The tool definitions are fixed for the
-  session and sent to the model as ordinary function definitions; there is no
-  meta-tool that dispatches other tools.
-- **Fully visible tool calls.** Every observation names the call the agent made
-  and the arguments it passed (`tool_name(key=value, ...)`), so the model can
-  see exactly what its own calls did and can correct bad arguments.
 - **Duplicate-call guard.** Repeated reads, directory listings, and searches are
   detected against filesystem snapshots (path keys plus content digests) within
   a five-call window, and the repeat is answered with an explanation instead of
   another identical result.
-- **Head/tail-protected compaction.** When estimated input tokens pass a
-  threshold, the middle of the history is summarized by a dedicated LLM call
-  while the system prompt, the original task, and the most recent messages are
-  preserved verbatim.
 - **SEARCH/REPLACE patching.** Edits are applied by a content-addressable patch
   engine with a three-tier match (exact, normalized, fuzzy) and indentation
   reconstruction, so a slightly mis-indented search block still lands correctly.
-- **Measured, not estimated, token accounting.** The token ledger records only
-  usage the provider actually reports, split by call kind (model, compaction,
-  routine); cost is derived from a live price fetch with a persistent cache and
-  a checked-in fallback catalog.
 - **Repair routines.** Malformed tool-call JSON is reconstructed with one
   schema-constrained single-shot LLM call instead of failing the turn.
-- **Complete session artifacts.** Every run leaves a resolved config, the full
-  message journal, per-call token usage, costs, timings, tool metrics, and an
-  outcome record, so results are auditable after the fact.
 
 ## Repository layout
 
@@ -169,7 +152,6 @@ Common options:
 ```bash
 python -m benchmark.predict.cli \
   --run-name my-run \
-  --max-instances 25 \
   --split test \
   --dataset-id princeton-nlp/SWE-bench_Verified \
   --instance-ids django__django-11099,astropy__astropy-12907 \
@@ -219,7 +201,6 @@ The benchmark writes to `<output_dir>/<run_name>/`:
 ```bash
 python -m pytest tests benchmark/tests          # default suite
 python -m pytest tests benchmark/tests --all    # + slow, live-LLM, external-tool tests
-python -m pytest tests --llm                    # real model calls only
 python -m ruff format src/histrel benchmark tests
 python -m ruff check src/histrel benchmark tests
 python -m pyright src/histrel benchmark tests
