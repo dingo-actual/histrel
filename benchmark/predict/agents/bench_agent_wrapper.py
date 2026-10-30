@@ -46,7 +46,7 @@ from benchmark.common.logging import safe_log
 from loguru import logger
 
 # Default model when bench_settings.toml does not specify one.
-_DEFAULT_MODEL = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
+_DEFAULT_MODEL = "accounts/fireworks/models/glm-5p3-flash"
 
 
 def _agent_config_template_path() -> Path:
@@ -166,7 +166,7 @@ class BenchAgentWrapper:
 
         # Replace placeholders in the template
         config_text = config_text.replace(
-            'model_name = "accounts/fireworks/models/deepseek-v4p1-flash-1017"',
+            f'model_name = "{_DEFAULT_MODEL}"',
             f'model_name = "{model}"',
         )
 

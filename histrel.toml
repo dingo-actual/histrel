@@ -14,7 +14,7 @@ task_id = "placeholder"
 agent_system_prompt = { initialize = "placeholder", step = "placeholder" }
 
 model_provider = "fireworks"
-model_name = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
+model_name = "accounts/fireworks/models/glm-5p3-flash"
 model_top_p = 0.95
 model_reasoning_effort = "high"
 model_context_limit_tokens = 1000000

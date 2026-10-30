@@ -7,7 +7,7 @@
 [histrel]
 # models: model id, or a table mapping template name -> model id with an
 # optional "default" entry.
-models = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
+models = "accounts/fireworks/models/glm-5p3-flash"
 # token_budget: total budget for the entire run (prompt + completion).
 # solution_token_budget: portion reserved for finalization.
 token_budget = 3_000_000
