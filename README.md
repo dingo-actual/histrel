@@ -188,19 +188,27 @@ building or executing anything.
 
 Each session writes artifacts to `<output_dir>`:
 
-`manifest.resolved.json`, `messages.jsonl`, `token_usage_calls.jsonl`,
-`costs.json`, `timings.json`, `tool_metrics.json`, `outcome.json`,
-`result_manifest.json`, and `repository.diff`. Two more carry recorded session
-facts: `compactions.jsonl` (one record per context compaction, with the
-compacted and retained message counts and the summary) and
-`source_context.json` (the session and task ids, loop mode, model, budgets,
-workspace revision, and tool set that shaped every model call).
+| File | Contents |
+| --- | --- |
+| `manifest.resolved.json` | The fully resolved config used for the session. |
+| `messages.jsonl` | The model message journal, one record per message. |
+| `token_usage_calls.jsonl` | One record per model call: token counts, call kind, provider request id. |
+| `costs.json` | Token and cost totals computed from the price catalog. |
+| `timings.json` | Wall-clock seconds per timing category, plus a metadata block. |
+| `tool_metrics.json` | Per-tool call metrics. |
+| `source_context.json` | Fixed session inputs: session and task ids, loop mode, model, budgets, workspace revision, tool set. |
+| `outcome.json` | Final session status and its reason. |
+| `repository.diff` | Workspace diff after the session. |
+| `compactions.jsonl` | One record per context compaction: compacted and retained message counts, and the summary. |
+| `result_manifest.json` | Hashes of every other artifact; written last. |
 
 The benchmark writes to `<output_dir>/<run_name>/`:
 
-- `bench_agent_predictions.jsonl` — one prediction record per instance
-- `bench_agent_usage.jsonl` — token usage per instance
-- `artifacts/<instance>/` — per-instance session artifacts
+| Path | Contents |
+| --- | --- |
+| `bench_agent_predictions.jsonl` | One prediction record per instance. |
+| `bench_agent_usage.jsonl` | Token usage per instance. |
+| `artifacts/<instance>/` | Per-instance session artifacts. |
 
 ## Development
 
