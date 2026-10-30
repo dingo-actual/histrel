@@ -181,7 +181,6 @@ docstring-code-line-length = 72
 
 [dependency-groups]
 benchmark = [
-    "aiohttp>=3.13.2",
     "datasets>=3.6.0",
     "docker>=7.1.0",
     "swebench==4.1.0",

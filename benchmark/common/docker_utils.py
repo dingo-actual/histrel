@@ -16,7 +16,7 @@ Notes:
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Any, Protocol
 
@@ -177,8 +177,6 @@ def run_container(
     timeout: int | None = None,
     stdout_file: IO[bytes] | None = None,
     stderr_file: IO[bytes] | None = None,
-    cancellation_callback: Callable[[], bool] | None = None,
-    container_started_callback: Callable[[str], None] | None = None,
 ) -> tuple[int, str]:
     """Run a container to completion, streaming stdout/stderr to files.
 
@@ -193,8 +191,6 @@ def run_container(
         timeout: Max runtime in seconds.
         stdout_file: File handle to write container stdout (binary mode).
         stderr_file: File handle to write container stderr (binary mode).
-        cancellation_callback: Optional callback that returns True when cancelled.
-        container_started_callback: Callback invoked with container_id when started.
 
     Returns:
         (exit_code, container_id) Tuple of exit code and container ID.
@@ -215,9 +211,6 @@ def run_container(
 
     # Notify callback that container has started
     container_id_str = getattr(container, "id", "<unknown>")
-    if container_started_callback is not None:
-        with contextlib.suppress(Exception):
-            container_started_callback(container_id_str)
 
     # Start a background thread to stream logs to files
     import threading
@@ -241,73 +234,19 @@ def run_container(
     )
     t.start()
 
-    # Wait for container completion with cancellation and timeout support
+    # Wait for container completion with timeout support
     exit_code = 1
-    cancelled = False
-    timed_out = False
     try:
-        # If no cancellation callback, use simple wait
-        if cancellation_callback is None:
-            result = container.wait(timeout=timeout)
-            exit_code = int(result.get("StatusCode", 1))
-            logger.bind(
-                component="histrel.benchmark.docker",
-                container_id=container_id_str,
-                exit_code=exit_code,
-                status=result.get("StatusCode"),
-            ).info("Container wait completed (simple wait)")
-        else:
-            # Poll for completion or cancellation
-            import time
-
-            start_time = time.time()
-            poll_interval = 1.0
-            while True:
-                # Check for cancellation
-                with contextlib.suppress(Exception):
-                    if cancellation_callback():
-                        cancelled = True
-                        logger.bind(component="histrel.benchmark.docker").warning(
-                            "Container execution cancelled via callback"
-                        )
-                        break
-
-                # Check for timeout
-                if timeout is not None and (time.time() - start_time) >= timeout:
-                    timed_out = True
-                    logger.bind(component="histrel.benchmark.docker").warning(
-                        f"Container execution timed out after {timeout}s"
-                    )
-                    break
-
-                # Check if container finished
-                with contextlib.suppress(Exception):
-                    # Use reload to check container status
-                    if hasattr(container, "reload"):
-                        container.reload()
-                    status = getattr(container, "status", None)
-                    if status in ("exited", "dead"):
-                        result = container.wait(timeout=1)
-                        exit_code = int(result.get("StatusCode", 1))
-                        logger.bind(
-                            component="histrel.benchmark.docker",
-                            container_id=container_id_str,
-                            exit_code=exit_code,
-                            status=result.get("StatusCode"),
-                        ).info("Container wait completed (polling)")
-                        break
-
-                time.sleep(poll_interval)
-
-        # If cancelled or timed out, stop the container
-        if cancelled or timed_out:
-            stop = getattr(container, "stop", None)
-            if callable(stop):
-                with contextlib.suppress(Exception):
-                    stop(timeout=5)
-            exit_code = 130 if cancelled else 124
+        result = container.wait(timeout=timeout)
+        exit_code = int(result.get("StatusCode", 1))
+        logger.bind(
+            component="histrel.benchmark.docker",
+            container_id=container_id_str,
+            exit_code=exit_code,
+            status=result.get("StatusCode"),
+        ).info("Container wait completed")
     except Exception:
-        # Unexpected error: attempt to stop the container (best-effort)
+        # Timeout or unexpected error: attempt to stop the container (best-effort)
         stop = getattr(container, "stop", None)
         if callable(stop):
             with contextlib.suppress(Exception):

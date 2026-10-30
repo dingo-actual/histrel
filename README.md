@@ -119,7 +119,7 @@ harness copies it per instance and fills in the placeholder values.
 
 Harness settings live in `benchmark/bench_settings.toml`: model ids, total
 token budget, dataset id and split, instance cap, per-instance timeout, Docker
-base image, cancellation server address, and verbose flag.
+base image, and verbose flag.
 
 ## Running the agent directly
 
@@ -170,9 +170,8 @@ python -m benchmark.predict.cli \
 The harness builds one image per instance, mounts the instance data read-only
 and the output directory read-write, runs the agent inside the container, and
 extracts the resulting patch. Runs are resumable: existing predictions are
-skipped. A local HTTP server on `127.0.0.1:8765` accepts `POST /cancel` to stop
-the active container. `--dry-run` writes a `PLAN.md` summary of the resolved
-run instead of building or executing anything.
+skipped. `--dry-run` writes a `PLAN.md` summary of the resolved run instead of
+building or executing anything.
 
 ## Tools
 

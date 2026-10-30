@@ -46,14 +46,6 @@ class SWEbenchConfig(BaseModel):
         return v
 
 
-class CancellationConfig(BaseModel):
-    """Configuration for HTTP cancellation server."""
-
-    enabled: bool = Field(default=True, description="Enable HTTP cancellation")
-    host: str = Field(default="127.0.0.1", description="Bind host for server")
-    port: int = Field(default=8765, ge=1024, le=65535, description="Server port")
-
-
 class PredictorConfig(BaseModel):
     """Top-level predictor configuration."""
 
@@ -73,7 +65,6 @@ class PredictorConfig(BaseModel):
     show_container_streams: bool = False
 
     swe_bench: SWEbenchConfig = Field(default_factory=SWEbenchConfig)
-    cancellation: CancellationConfig = Field(default_factory=CancellationConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
@@ -97,12 +88,9 @@ def _coerce_benchmark_dict(doc: dict[str, Any]) -> dict[str, Any]:
 
     swe_bench = section.get("swe_bench", {})
     verbose_tbl = section.get("verbose", {})
-    cancellation_tbl = section.get("cancellation", {})
 
     result: dict[str, Any] = {
-        key: val
-        for key, val in section.items()
-        if key not in {"swe_bench", "verbose", "cancellation"}
+        key: val for key, val in section.items() if key not in {"swe_bench", "verbose"}
     }
     if isinstance(swe_bench, dict):
         result["swe_bench"] = swe_bench
@@ -110,9 +98,6 @@ def _coerce_benchmark_dict(doc: dict[str, Any]) -> dict[str, Any]:
     if isinstance(verbose_tbl, dict):
         enabled = verbose_tbl.get("enabled", False)
         result["verbose"] = enabled
-
-    if isinstance(cancellation_tbl, dict):
-        result["cancellation"] = cancellation_tbl
 
     return result
 

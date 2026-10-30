@@ -12,7 +12,6 @@ import contextlib
 import json
 import os
 import time
-from collections.abc import Callable
 from pathlib import Path
 
 from benchmark.common.docker_utils import (
@@ -42,8 +41,6 @@ class DockerRunner:
         env: dict[str, str] | None = None,
         network_mode: str = "bridge",
         timeout: int | None = None,
-        cancellation_callback: Callable[[], bool] | None = None,
-        container_started_callback: Callable[[str], None] | None = None,
     ) -> tuple[Path, dict[str, float | UsageData | None], int]:
         """Run an agent container and return (patch_path, token_usage, exit_code).
 
@@ -55,8 +52,6 @@ class DockerRunner:
             env: Additional environment variables. Defaults to None.
             network_mode: Docker network mode. Defaults to "bridge".
             timeout: Timeout in seconds. Defaults to None.
-            cancellation_callback: Callable[[], bool] returning True when cancelled.
-            container_started_callback: Callable[[str], None] invoked with container_id.
 
         Returns:
             (Path, dict, int) Tuple of (patch_path, token_usage, exit_code).
@@ -191,8 +186,6 @@ class DockerRunner:
                 timeout=timeout,
                 stdout_file=stdout_handle,
                 stderr_file=stderr_handle,
-                cancellation_callback=cancellation_callback,
-                container_started_callback=container_started_callback,
             )
         finally:
             stdout_handle.close()

@@ -28,10 +28,5 @@ docker = true
 docker_base_image = "python:3.11-slim"
 tools = ["ripgrep", "fd", "tokei"]
 
-[benchmark.cancellation]
-enabled = true
-host = "127.0.0.1"
-port = 8765
-
 [benchmark.verbose]
 enabled = false

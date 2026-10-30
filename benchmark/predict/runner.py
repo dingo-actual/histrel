@@ -13,24 +13,13 @@ interrupted runs.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import json
-from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import docker
 import docker.errors
-from aiohttp.web import (
-    AppKey,
-    Application,
-    AppRunner,
-    Request,
-    Response,
-    TCPSite,
-    json_response,
-)
 from benchmark.common.io import append_jsonl, read_jsonl, write_run_metadata
 from benchmark.common.progress import (
     create_progress,
@@ -54,71 +43,6 @@ from loguru import logger
 
 if TYPE_CHECKING:
     from benchmark.predict.config import PredictorConfig
-
-
-CANCELLATION_EVENT_KEY: AppKey[asyncio.Event] = AppKey(
-    "cancellation_event", asyncio.Event
-)
-RUN_NAME_KEY: AppKey[str] = AppKey("run_name", str)
-STOP_CONTAINER_CALLBACK_KEY: AppKey[Callable[[], Any] | None] = AppKey(
-    "stop_container_callback"
-)
-
-
-async def _cancellation_handler(
-    request: Request,
-) -> Response:
-    """Handle POST /cancel requests."""
-    cancellation_event: asyncio.Event = request.app[CANCELLATION_EVENT_KEY]
-    run_name: str = request.app[RUN_NAME_KEY]
-    stop_container_callback = request.app.get(STOP_CONTAINER_CALLBACK_KEY)
-
-    with contextlib.suppress(Exception):
-        logger.bind(
-            run_name=run_name,
-            component="benchmark.predict.runner",
-            origin="bench_harness_predict",
-            event="cancellation.received",
-        ).warning("Cancellation request received via HTTP")
-
-    cancellation_event.set()
-
-    # Stop active container immediately
-    if stop_container_callback is not None:
-        with contextlib.suppress(Exception):
-            await stop_container_callback()
-
-    return json_response({"status": "cancelled", "run_name": run_name})
-
-
-async def _start_cancellation_server(
-    host: str,
-    port: int,
-    cancellation_event: asyncio.Event,
-    run_name: str,
-    stop_container_callback: Callable[[], Any] | None = None,
-) -> AppRunner:
-    """Start HTTP cancellation server and return the runner."""
-    app = Application()
-    app[CANCELLATION_EVENT_KEY] = cancellation_event
-    app[RUN_NAME_KEY] = run_name
-    app[STOP_CONTAINER_CALLBACK_KEY] = stop_container_callback
-    app.router.add_post("/cancel", _cancellation_handler)
-
-    runner = AppRunner(app)
-    await runner.setup()
-    site = TCPSite(runner, host, port)
-    await site.start()
-
-    with contextlib.suppress(Exception):
-        logger.bind(
-            run_name=run_name,
-            component="benchmark.predict.runner",
-            origin="bench_harness_predict",
-            event="cancellation.server_started",
-        ).info(f"Cancellation server listening on http://{host}:{port}/cancel")
-
-    return runner
 
 
 def _empty_usage_accumulator() -> dict[str, int | float]:
@@ -270,13 +194,8 @@ def _run_agent_instance(
     predictions_file: Path,
     usage_file: Path,
     session_usage: SessionUsage,
-    cancellation_event: asyncio.Event,
-    set_active_container: Callable[[str | None], None],
 ) -> None:
     """Run the benchmark agent for one instance and record its results."""
-
-    def _on_container_started(cid: str) -> None:
-        set_active_container(cid)
 
     try:
         patch_path, token_usage, exit_code = docker_runner.run_agent(
@@ -284,12 +203,7 @@ def _run_agent_instance(
             image,
             config,
             timeout=config.swe_bench.timeout_seconds,
-            cancellation_callback=cancellation_event.is_set,
-            container_started_callback=_on_container_started,
         )
-
-        # Clear active container after execution
-        set_active_container(None)
 
         _record_prediction(
             run_name=run_name,
@@ -357,49 +271,6 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
     # Configure logging
     setup_benchmark_logging(verbose=config.verbose, level="INFO")
     setup_benchmark_file_sink()  # Always-active file sink at TRACE level
-
-    # Set up cancellation server and active container tracking
-    cancellation_event = asyncio.Event()
-    cancellation_runner: AppRunner | None = None
-    active_container_id: str | None = None
-
-    def _set_active_container(container_id: str | None) -> None:
-        nonlocal active_container_id
-        active_container_id = container_id
-
-    async def _stop_active_container() -> None:
-        """Stop the currently active container if any."""
-        if active_container_id:
-            with contextlib.suppress(Exception):
-                container = client.containers.get(active_container_id)
-                container.stop(timeout=5)
-                logger.bind(
-                    run_name=run_name,
-                    container_id=active_container_id[:12],
-                    component="benchmark.predict.runner",
-                    origin="bench_harness_predict",
-                ).warning("Stopped active container due to cancellation")
-
-    if config.cancellation.enabled:
-        try:
-            cancellation_runner = await _start_cancellation_server(
-                host=config.cancellation.host,
-                port=config.cancellation.port,
-                cancellation_event=cancellation_event,
-                run_name=run_name,
-                stop_container_callback=_stop_active_container,
-            )
-        except Exception as exc:
-            with contextlib.suppress(Exception):
-                logger.bind(
-                    run_name=run_name,
-                    component="benchmark.predict.runner",
-                    origin="bench_harness_predict",
-                ).warning(
-                    "Failed to start cancellation server",
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
 
     # Test log to verify the log sinks are working
     logger.bind(
@@ -595,19 +466,6 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
         )
 
         for ix, instance in enumerate(instances, start=1):
-            # Check for cancellation before processing each instance
-            if cancellation_event.is_set():
-                with contextlib.suppress(Exception):
-                    logger.bind(
-                        run_name=run_name,
-                        component="benchmark.predict.runner",
-                        event="cancellation.detected",
-                        origin="bench_harness_predict",
-                    ).warning(
-                        f"Cancellation detected, stopping at instance {ix}/{len(instances)}"
-                    )
-                break
-
             instance_id = instance.get("instance_id", f"<unknown_{ix}>")
 
             with contextlib.suppress(Exception):
@@ -660,8 +518,6 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
                     predictions_file=predictions_file,
                     usage_file=usage_file,
                     session_usage=session_usage,
-                    cancellation_event=cancellation_event,
-                    set_active_container=_set_active_container,
                 )
 
             progress.update(instance_task, advance=1)
@@ -773,19 +629,8 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
             origin="bench_harness_predict",
         ).info(
             "Prediction generation complete",
-            cancelled=cancellation_event.is_set(),
             predictions_file=str(predictions_file),
         )
-
-    # Clean up cancellation server
-    if cancellation_runner is not None:
-        with contextlib.suppress(Exception):
-            await cancellation_runner.cleanup()
-            logger.bind(
-                run_name=run_name,
-                component="benchmark.predict.runner",
-                origin="bench_harness_predict",
-            ).info("Stopped cancellation server")
 
     # Set final session_id
     session_usage["session_id"] = session_usage["session_id"] or "MISSING"
