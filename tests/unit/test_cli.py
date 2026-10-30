@@ -16,14 +16,18 @@ import pytest
 from dulwich.porcelain import add, commit
 from dulwich.repo import Repo
 
+from benchmark.predict.agents.prompts import get_bench_agent_sys_prompts
 from histrel.__main__ import build_parser
 from histrel.cli import (
     build_config_from_env,
     main,
     read_env,
 )
+from histrel.core.config import Mode
 from histrel.core.runtime import Runtime
 from histrel.terminal import SessionOutcome, SessionStatus
+
+_MODES: list[Mode] = ["stateless", "react"]
 
 
 def _write_toml(path: Path, content: str) -> Path:
@@ -76,15 +80,24 @@ def _patch_cli_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("histrel.cli.setup_file_sink", lambda: None)
 
 
-def _fake_run_agent(workspace: Path) -> Callable[[str, Runtime], SessionOutcome]:
+def _fake_run_agent(
+    workspace: Path, captured: list[Runtime] | None = None
+) -> Callable[[str, Runtime], SessionOutcome]:
     """Build a run_agent replacement that reports a successful session.
 
     The CLI test validates wiring, not the agent loop itself (which has
     its own tests), so the replacement avoids real model calls and
     terminates deterministically.
+
+    Args:
+        workspace (Path): Workspace the replacement edits.
+        captured (list[Runtime] | None): When given, receives the runtime
+            the CLI constructed. Defaults to None.
     """
 
     def fake_run_agent(user_msg: str, runtime: Runtime) -> SessionOutcome:
+        if captured is not None:
+            captured.append(runtime)
         runtime.initialize(user_msg)
         (workspace / "main.py").write_text("print('fixed')\n")
         return runtime.finalize(
@@ -292,3 +305,39 @@ class Test04Unit03Cli04ModeParser:
             build_parser().parse_args(
                 ["--mode", "agentic", "cfg.toml", "workspace", "out", "Fix it."]
             )
+
+
+class Test04Unit03Cli06Prompts:
+    """System prompts come from the harness prompt module, not the TOML."""
+
+    @pytest.mark.parametrize("mode", _MODES)
+    def test_04_unit_03_cli_06_prompts_01_mode_selects_rendered_prompts(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: Mode
+    ) -> None:
+        # Arrange
+        toml_path = _write_toml(tmp_path / "config.toml", _baseline_toml())
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        _init_workspace(workspace)
+        _patch_cli_env(monkeypatch)
+        captured: list[Runtime] = []
+        monkeypatch.setattr(
+            "histrel.cli.run_agent", _fake_run_agent(workspace, captured)
+        )
+
+        # Act
+        main(
+            user_msg="Fix the failing test.",
+            config_path=toml_path,
+            workspace_root=workspace,
+            output_dir=tmp_path / "output",
+            mode=mode,
+        )
+
+        # Assert — the rendered harness prompts replace the TOML text
+        expected = get_bench_agent_sys_prompts(workspace, mode)
+        prompts = captured[0].config.agent_system_prompt
+        assert prompts.initialize == expected["initialize"]
+        assert prompts.step == expected["step"]
+        assert prompts.initialize != "You are a coding agent."
+        assert str(workspace) in prompts.initialize

@@ -22,9 +22,10 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel
 
-from histrel.core.config import AgentConfig, Budgets, Mode, load_config
+from histrel.core.config import AgentConfig, Budgets, Mode, SystemPrompts, load_config
 from histrel.core.runtime import Runtime, run_agent
 from histrel.logging.agent_logger import setup_file_sink
+from histrel.prompts import get_histrel_sys_prompts
 from histrel.terminal import SessionOutcome, SessionStatus
 
 # Bound logger for CLI-level lifecycle events.
@@ -219,14 +220,20 @@ def main(
         workspace_root (Path): Repository workspace root.
         output_dir (Path): Output directory for artifacts.
         mode (Mode): Agent loop mode from the command line. Defaults to
-            "stateless".
+            "stateless". Selects which prompts are rendered.
 
     Returns:
         (int) Exit code: 0 for success, 1 for failure.
     """
     env = read_env()
     config = build_config_from_env(config_path, env)
-    config = config.model_copy(update={"mode": mode})
+    prompts = get_histrel_sys_prompts(workspace_root, mode)
+    config = config.model_copy(
+        update={
+            "mode": mode,
+            "agent_system_prompt": SystemPrompts(**prompts),
+        }
+    )
 
     # Catch-all JSON-lines file sink for the agent's own log. The file is
     # written to /tmp so it never pollutes the repository working tree; the

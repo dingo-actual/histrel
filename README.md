@@ -108,7 +108,7 @@ harness copies it per instance and fills in the placeholder values.
 | --- | --- |
 | `schema_version` | Config schema version (currently `1`). |
 | `session_id`, `task_id` | Identifiers, overridden by the harness. |
-| `agent_system_prompt` | `{ initialize = ..., step = ... }` system prompt pair. |
+| `agent_system_prompt` | Placeholder pair; the CLI renders the real prompts. |
 | `model_provider`, `model_name` | Provider id and model id. |
 | `model_top_p`, `model_reasoning_effort` | Sampling and reasoning settings. |
 | `model_context_limit_tokens`, `model_max_tokens_output` | Context window and output cap. |
