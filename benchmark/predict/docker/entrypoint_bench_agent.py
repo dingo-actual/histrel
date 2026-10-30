@@ -13,8 +13,10 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
 from benchmark.predict.agents import BenchAgentWrapper
+from benchmark.predict.config import Mode
 from benchmark.predict.types import AGENT_TYPE
 from benchmark.common.logging import safe_log
 
@@ -148,6 +150,7 @@ def main() -> int:
         session_id,
         has_test_runner=has_test_runner,
         timeout=timeout_seconds,
+        mode=cast(Mode, os.environ.get("AGENT_MODE") or "stateless"),
     )
 
     output_dir = Path("/workspace/output")

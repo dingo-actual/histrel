@@ -9,11 +9,10 @@ flow with patched subprocess execution.
 from __future__ import annotations
 
 import json
-import re
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,6 +22,7 @@ if sys.platform == "win32":
     pytest.skip("Scorer requires Unix", allow_module_level=True)
 
 from benchmark.predict.agents import bench_agent_wrapper as bench_agent_wrapper_module
+from benchmark.predict.config import Mode
 from benchmark.tests.fixtures.swebench import make_bench_agent_wrapper
 
 
@@ -36,30 +36,7 @@ _MINIMAL_TOML = (
 
 _MINIMAL_TOML_DICT_MODEL = '[histrel]\nmodels = {"default" = "accounts/fireworks/models/deepseek-v4p1-flash-1017"}\n'
 
-
-def _use_template_with_mode(
-    tmp_path: Path, mode: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Patch the wrapper to use a real-template copy with the given mode."""
-    template_text = bench_agent_wrapper_module._AGENT_CONFIG_TEMPLATE_PATH.read_text(
-        encoding="utf-8"
-    )
-    mode_template = tmp_path / f"agent_config_{mode}.toml"
-    mode_template.write_text(
-        re.sub(
-            r'^mode = "[^"]*"$',
-            f'mode = "{mode}"',
-            template_text,
-            count=1,
-            flags=re.MULTILINE,
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        bench_agent_wrapper_module,
-        "_AGENT_CONFIG_TEMPLATE_PATH",
-        mode_template,
-    )
+_MODES: list[Mode] = ["stateless", "react"]
 
 
 # ---------------------------------------------------------------------------
@@ -185,20 +162,19 @@ class Test04Unit03BenchAgentWrapper03WriteAgentConfig:
             assert 'model_provider = "fireworks"' in content
             assert 'model_api_key_env = "FIREWORKS_API_KEY"' in content
 
-    @pytest.mark.parametrize("mode", ["stateless", "react"])
+    @pytest.mark.parametrize("mode", _MODES)
     def test_04_unit_03_bench_agent_wrapper_03_write_config_05_system_prompt_histrel(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+        self, tmp_path: Path, mode: Mode
     ) -> None:
         # Arrange
         config_path = tmp_path / "histrel.toml"
         config_path.write_text(_MINIMAL_TOML)
         repo_dir = tmp_path / "repo"
         repo_dir.mkdir()
-        _use_template_with_mode(tmp_path, mode, monkeypatch)
 
         # Act
         with make_bench_agent_wrapper(config_path) as wrapper:
-            agent_config = wrapper._write_agent_config(repo_dir)
+            agent_config = wrapper._write_agent_config(repo_dir, mode)
 
             # Assert — prompts render with repo path; react reuses one
             # prompt for both slots, stateless uses distinct prompts
@@ -218,52 +194,83 @@ class Test04Unit03BenchAgentWrapper03WriteAgentConfig:
                     != written["agent_system_prompt"]["step"]
                 )
 
-    @pytest.mark.parametrize("mode", ["stateless", "react"])
-    def test_04_unit_03_bench_agent_wrapper_07_mode_02_mode_selected(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+    @pytest.mark.parametrize("mode", _MODES)
+    def test_04_unit_03_bench_agent_wrapper_07_mode_01_mode_not_written(
+        self, tmp_path: Path, mode: Mode
     ) -> None:
-        # Arrange — template derived from the real one with the mode set
+        # Arrange
         config_path = tmp_path / "histrel.toml"
         config_path.write_text(_MINIMAL_TOML)
         repo_dir = tmp_path / "repo"
         repo_dir.mkdir()
-        _use_template_with_mode(tmp_path, mode, monkeypatch)
 
         # Act
         with make_bench_agent_wrapper(config_path) as wrapper:
-            agent_config = wrapper._write_agent_config(repo_dir)
+            agent_config = wrapper._write_agent_config(repo_dir, mode)
 
-            # Assert — mode passes through; react reuses one prompt for both
-            # slots, stateless uses distinct prompts (no exact prompt matching)
+            # Assert — mode travels on the command line, not in the config
             written = tomllib.loads(agent_config.read_text(encoding="utf-8"))
-            assert written["mode"] == mode
-            if mode == "react":
-                assert (
-                    written["agent_system_prompt"]["initialize"]
-                    == written["agent_system_prompt"]["step"]
-                )
-            else:
-                assert (
-                    written["agent_system_prompt"]["initialize"]
-                    != written["agent_system_prompt"]["step"]
-                )
+            assert "mode" not in written
 
-    def test_04_unit_03_bench_agent_wrapper_07_mode_04_invalid_mode_rejected(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize("mode", _MODES)
+    def test_04_unit_03_bench_agent_wrapper_07_mode_02_command_passes_mode(
+        self, tmp_path: Path, mode: Mode
     ) -> None:
-        # Arrange — invalid mode value
+        # Arrange
         config_path = tmp_path / "histrel.toml"
         config_path.write_text(_MINIMAL_TOML)
         repo_dir = tmp_path / "repo"
         repo_dir.mkdir()
-        _use_template_with_mode(tmp_path, "agentic", monkeypatch)
+        (repo_dir / ".git").mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        fake_result = MagicMock(returncode=0, stdout="", stderr="")
+        captured_cmd: list[str] = []
+
+        def capture_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            return fake_result
+
+        with (
+            make_bench_agent_wrapper(config_path) as wrapper,
+            patch.object(wrapper.repo_manager, "validate_repo"),
+            patch.object(wrapper.repo_manager, "extract_patch", return_value=""),
+            patch("subprocess.run", side_effect=capture_run),
+            patch.object(
+                wrapper, "_load_usage_data", return_value={"total": {"tokens_total": 0}}
+            ),
+            patch("benchmark.predict.agents.bench_agent_wrapper.Path") as mock_path,
+        ):
+            mock_path.return_value = output_dir
+
+            # Act
+            wrapper.generate_patch(
+                instance={"instance_id": "test-123"},
+                repo_dir=repo_dir,
+                session_id="test-session",
+                mode=mode,
+            )
+
+            # Assert — the agent is told the mode explicitly
+            shell_cmd = captured_cmd[2]
+            assert f"--mode {mode}" in shell_cmd
+
+    def test_04_unit_03_bench_agent_wrapper_07_mode_04_invalid_mode_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        config_path = tmp_path / "histrel.toml"
+        config_path.write_text(_MINIMAL_TOML)
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
 
         # Act & Assert
         with (
             make_bench_agent_wrapper(config_path) as wrapper,
             pytest.raises(RuntimeError, match="agentic"),
         ):
-            wrapper._write_agent_config(repo_dir)
+            wrapper._write_agent_config(repo_dir, cast(Mode, "agentic"))
 
 
 # ---------------------------------------------------------------------------

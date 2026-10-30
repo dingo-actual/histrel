@@ -35,6 +35,7 @@ from benchmark.predict.agents.pyc_preflight import (
 )
 from benchmark.predict.agents.repo import GitRepoManager
 from benchmark.predict.agents.templates import MESSAGE_TEMPLATE, render_template
+from benchmark.predict.config import Mode
 from benchmark.predict.types import AGENT_TYPE
 import histrel
 from histrel.logging.agent_logger import (
@@ -130,21 +131,19 @@ class BenchAgentWrapper:
             raise RuntimeError(f"Config file not found: {self.config_path}")
         return tomllib.loads(self.config_path.read_text(encoding="utf-8"))
 
-    def _write_agent_config(self, repo_dir: Path) -> Path:
+    def _write_agent_config(self, repo_dir: Path, mode: Mode = "stateless") -> Path:
         """Write the agent TOML config to the repo directory.
 
         Read the template from the repository-root ``histrel.toml``, then
         replaces the model name and agent system prompt based on the
-        harness config and the agent type. The ``mode`` value is
-        read from the template and passed through verbatim; in
-        ``"react"`` mode the rendered prompt is the react template for
-        both the initialize and step slots, regardless of agent type.
+        harness config and the agent type.
         The agent system prompt is the rendered prompt from
         ``get_bench_agent_sys_prompts`` for the active agent type
         (bench-agent or bench-agent-no-mt) and mode.
 
         Args:
             repo_dir (Path): Repository directory where the config is written.
+            mode (Mode): Agent loop mode. Defaults to "stateless".
 
         Returns:
             (Path) Path to the written agent_config.toml.
@@ -156,15 +155,14 @@ class BenchAgentWrapper:
 
         config_text = _AGENT_CONFIG_TEMPLATE_PATH.read_text(encoding="utf-8")
 
-        # Parse model and mode from harness config / template
-        harness_config = self._load_config()
-        model = self._parse_model_from_config(harness_config)
-        mode = tomllib.loads(config_text).get("mode", "stateless")
         if mode not in ("stateless", "react"):
             raise RuntimeError(
-                f"Invalid mode '{mode}' in agent config template: "
-                f"{_AGENT_CONFIG_TEMPLATE_PATH}"
+                f"Invalid mode '{mode}': expected 'stateless' or 'react'"
             )
+
+        # Parse model from harness config
+        harness_config = self._load_config()
+        model = self._parse_model_from_config(harness_config)
 
         # Replace placeholders in the template
         config_text = config_text.replace(
@@ -369,6 +367,7 @@ class BenchAgentWrapper:
         session_id: str,
         has_test_runner: bool = False,
         timeout: int = 7200,
+        mode: Mode = "stateless",
     ) -> tuple[str, dict]:
         """Generate patch for SWE-bench instance using the benchmark agent.
 
@@ -378,6 +377,8 @@ class BenchAgentWrapper:
             session_id (str): Session identifier for tracking.
             has_test_runner (bool): Whether test runners are available.
             timeout (int): Timeout in seconds. Defaults to 7200.
+            mode (Mode): Agent loop mode passed to ``python -m histrel
+                --mode``. Defaults to "stateless".
 
         Returns:
             (tuple[str, dict]) Patch text and usage statistics dictionary.
@@ -406,7 +407,7 @@ class BenchAgentWrapper:
         self.repo_manager.validate_repo(repo_dir)
 
         # Write agent-specific TOML config from template + harness config
-        agent_config_path = self._write_agent_config(repo_dir)
+        agent_config_path = self._write_agent_config(repo_dir, mode)
 
         # Output directory for agent artifacts
         output_dir = Path("/workspace/output")
@@ -424,9 +425,12 @@ class BenchAgentWrapper:
             "python",
             "-m",
             "histrel",
+            "--mode",
+            mode,
             str(agent_config_path),
             str(repo_dir),
             str(output_dir),
+            "--",
             user_msg,
         ]
 

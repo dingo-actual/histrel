@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import secrets
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+Mode = Literal["stateless", "react"]
 
 
 class SWEbenchConfig(BaseModel):
@@ -62,6 +64,7 @@ class PredictorConfig(BaseModel):
         default_factory=lambda: f"run{secrets.token_hex(4)}",
         description="Unique identifier for this benchmark run",
     )
+    mode: Mode = "stateless"
     seed: int = 12321
     allow_network: bool = True
     allow_shell_observation: bool = True

@@ -8,6 +8,7 @@ config file creation (no mocks).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,6 +16,7 @@ import pytest
 from dulwich.porcelain import add, commit
 from dulwich.repo import Repo
 
+from histrel.__main__ import build_parser
 from histrel.cli import (
     build_config_from_env,
     main,
@@ -219,3 +221,74 @@ class Test04Unit03Cli03Main:
         artifacts_dir = output / "test-session" / "artifacts"
         assert (artifacts_dir / "outcome.json").exists()
         assert (artifacts_dir / "result_manifest.json").exists()
+        source_context = json.loads(
+            (artifacts_dir / "source_context.json").read_text(encoding="utf-8")
+        )
+        assert source_context["mode"] == "stateless"
+
+    def test_04_unit_03_cli_03_main_02_mode_flag_sets_config_mode(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # Arrange
+        toml_path = _write_toml(tmp_path / "config.toml", _baseline_toml())
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        output = tmp_path / "output"
+        _init_workspace(workspace)
+        _patch_cli_env(monkeypatch)
+        monkeypatch.setattr("histrel.cli.run_agent", _fake_run_agent(workspace))
+
+        # Act
+        main(
+            user_msg="Fix the failing test.",
+            config_path=toml_path,
+            workspace_root=workspace,
+            output_dir=output,
+            mode="react",
+        )
+
+        # Assert — the CLI flag wins over the config default
+        source_context = json.loads(
+            (output / "test-session" / "artifacts" / "source_context.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert source_context["mode"] == "react"
+
+
+class Test04Unit03Cli04ModeParser:
+    """``python -m histrel`` argument parsing."""
+
+    def test_04_unit_03_cli_04_mode_parser_01_defaults_to_stateless(self) -> None:
+        # Act
+        args = build_parser().parse_args(["cfg.toml", "workspace", "out", "Fix it."])
+
+        # Assert
+        assert args.mode == "stateless"
+
+    def test_04_unit_03_cli_04_mode_parser_02_accepts_react(self) -> None:
+        # Act
+        args = build_parser().parse_args(
+            ["--mode", "react", "cfg.toml", "workspace", "out", "Fix it."]
+        )
+
+        # Assert
+        assert args.mode == "react"
+
+    def test_04_unit_03_cli_04_mode_parser_03_keeps_dashed_message_positional(
+        self,
+    ) -> None:
+        # Act
+        args = build_parser().parse_args(
+            ["--mode", "react", "cfg.toml", "workspace", "out", "--", "--None--"]
+        )
+
+        # Assert
+        assert args.user_msg == "--None--"
+
+    def test_04_unit_03_cli_04_mode_parser_04_rejects_unknown_mode(self) -> None:
+        # Act & Assert
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(
+                ["--mode", "agentic", "cfg.toml", "workspace", "out", "Fix it."]
+            )

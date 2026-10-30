@@ -130,6 +130,7 @@ class DockerRunner:
         )
         environment["RUN_NAME"] = config.run_name
         environment["AGENT_TYPE"] = AGENT_TYPE
+        environment["AGENT_MODE"] = config.mode
         environment["INSTANCE_ID"] = instance_id
         environment["SESSION_ID"] = session_id
 

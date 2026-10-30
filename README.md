@@ -108,7 +108,6 @@ harness copies it per instance and fills in the placeholder values.
 | --- | --- |
 | `schema_version` | Config schema version (currently `1`). |
 | `session_id`, `task_id` | Identifiers, overridden by the harness. |
-| `mode` | `stateless` (per-iteration message) or `react` (replay history). |
 | `agent_system_prompt` | `{ initialize = ..., step = ... }` system prompt pair. |
 | `model_provider`, `model_name` | Provider id and model id. |
 | `model_top_p`, `model_reasoning_effort` | Sampling and reasoning settings. |
@@ -125,13 +124,17 @@ base image, cancellation server address, and verbose flag.
 ## Running the agent directly
 
 ```bash
-python -m histrel <config_path> <workspace_root> <output_dir> <user_msg>
+python -m histrel [--mode stateless|react] <config_path> <workspace_root> <output_dir> <user_msg>
 ```
+
+`--mode` selects the agent loop: `stateless` (the default, a per-iteration
+user message) or `react` (replays the full history).
 
 Example, against a scratch copy of a repository:
 
 ```bash
 python -m histrel \
+  --mode stateless \
   histrel.toml \
   /tmp/sandbox/repo \
   /tmp/sandbox/output \
@@ -152,6 +155,7 @@ Common options:
 ```bash
 python -m benchmark.predict.cli \
   --run-name my-run \
+  --mode stateless \
   --split test \
   --dataset-id princeton-nlp/SWE-bench_Verified \
   --instance-ids django__django-11099,astropy__astropy-12907 \
@@ -159,6 +163,9 @@ python -m benchmark.predict.cli \
   --rebuild \
   --verbose                       # stream container stdout/stderr to stderr
 ```
+
+`--mode` (default `stateless`) is passed through to every agent container as
+`python -m histrel --mode ...`.
 
 The harness builds one image per instance, mounts the instance data read-only
 and the output directory read-write, runs the agent inside the container, and

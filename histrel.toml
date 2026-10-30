@@ -3,15 +3,13 @@
 # This is the canonical agent config. The benchmark harness copies it into the
 # target repository, replaces the placeholder values below (session id, task id,
 # model, rendered system prompts), and runs ``python -m histrel`` on
-# the result. Harness-side settings live in ``benchmark/bench_settings.toml``.
+# the result. The agent loop mode is not set here: it is passed on the command
+# line with ``--mode`` (default "stateless"). Harness-side settings live in
+# ``benchmark/bench_settings.toml``.
 
 schema_version = 1
 session_id = "placeholder"
 task_id = "placeholder"
-
-# mode: agent loop mode — "stateless" (per-iteration stateless user message)
-# or "react" (full history replayed).
-mode = "react"
 
 agent_system_prompt = { initialize = "placeholder", step = "placeholder" }
 

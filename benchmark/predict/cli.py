@@ -31,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Common options
     parser.add_argument("-c", "--config", type=str, help="Path to config file.")
+    parser.add_argument(
+        "--mode",
+        choices=("stateless", "react"),
+        help="Agent loop mode passed to the agent (default: stateless).",
+    )
     parser.add_argument("-o", "--output-dir", type=str, help="Override output dir.")
     parser.add_argument("--run-name", type=str, help="Override run name.")
     parser.add_argument("--seed", type=int, help="Override seed.")
@@ -73,6 +78,8 @@ def build_parser() -> argparse.ArgumentParser:
 def _apply_overrides(cfg, args: argparse.Namespace):
     """Return a new config with CLI overrides applied."""
     updates = {}
+    if args.mode:
+        updates["mode"] = args.mode
     if args.output_dir:
         updates["output_dir"] = args.output_dir
     if args.run_name:

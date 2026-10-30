@@ -22,7 +22,7 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel
 
-from histrel.core.config import AgentConfig, Budgets, load_config
+from histrel.core.config import AgentConfig, Budgets, Mode, load_config
 from histrel.core.runtime import Runtime, run_agent
 from histrel.logging.agent_logger import setup_file_sink
 from histrel.terminal import SessionOutcome, SessionStatus
@@ -141,6 +141,7 @@ def _log_configuration(config: AgentConfig, config_path: Path) -> None:
         config_path=str(config_path),
         session_id=config.session_id,
         task_id=config.task_id,
+        mode=config.mode,
         model_provider=config.model_provider,
         model_name=config.model_name,
         max_wall_seconds=config.budgets.max_wall_seconds,
@@ -205,6 +206,7 @@ def main(
     config_path: Path,
     workspace_root: Path,
     output_dir: Path,
+    mode: Mode = "stateless",
 ) -> int:
     """Run the benchmark agent.
 
@@ -216,12 +218,15 @@ def main(
         config_path (Path): Path to the TOML configuration file.
         workspace_root (Path): Repository workspace root.
         output_dir (Path): Output directory for artifacts.
+        mode (Mode): Agent loop mode from the command line. Defaults to
+            "stateless".
 
     Returns:
         (int) Exit code: 0 for success, 1 for failure.
     """
     env = read_env()
     config = build_config_from_env(config_path, env)
+    config = config.model_copy(update={"mode": mode})
 
     # Catch-all JSON-lines file sink for the agent's own log. The file is
     # written to /tmp so it never pollutes the repository working tree; the
