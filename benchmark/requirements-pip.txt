@@ -1,0 +1,8 @@
+# pip-based setups: point the venv at the vendored SWE-bench clone so image
+# builds use the pinned conda lockfiles (swebench/resources/swebench-og) that
+# the PyPI wheel omits. uv installs get this automatically via
+# [tool.uv.sources] in the root pyproject.toml.
+#
+# After any pip install that pulled swebench from PyPI:
+#   pip install -r benchmark/requirements-pip.txt
+-e ./benchmark/vendor/SWE-bench

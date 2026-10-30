@@ -1,0 +1,19 @@
+{# fix_json.j2 - Malformed tool-call JSON repair routine request #}
+# Fix Malformed Tool-Call JSON
+
+Below is a JSON schema describing the intended structure of a tool
+call's arguments, followed by the malformed JSON emitted for that
+tool call.
+
+## Tool JSON Schema
+
+{{ tool_json_schema }}
+
+## Malformed JSON
+
+{{ malformed_json }}
+
+---
+
+Infer the intended tool-call arguments from the malformed JSON above and
+the schema, and return them as a correctly structured JSON object.

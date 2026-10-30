@@ -1,0 +1,212 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "histrel"
+version = "0.1.0"
+description = "Efficient code agent utilizing a single reasoning state"
+readme = "README.md"
+authors = [{ name = "Ryan P. Taylor", email = "ryan@beta-reduce.net" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "loguru>=0.7.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.0.0",
+    "rich>=14.1.0",
+    "dulwich>=0.24.7",
+    "ast-grep-py>=0.39.6",
+    "tiktoken>=0.12.0",
+    "rapidfuzz>=3.14.3",
+    "httpx>=0.28.1",
+    "openai>=1.87.0",
+]
+
+[project.scripts]
+histrel = "histrel.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/histrel", "benchmark"]
+
+# The agent config template lives at the repository root but is read by the
+# installed benchmark harness at runtime, so ship a copy inside the package.
+[tool.hatch.build.targets.wheel.force-include]
+"histrel.toml" = "histrel/histrel.toml"
+
+[tool.setuptools.package-data]
+"histrel.context" = ["fireworks_pricing_catalog.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--ignore=tests/resources --ignore=tests/resources/sympy_files --ignore=tests/resources/tree_files --ignore=vendor --ignore=benchmark/vendor"
+env = [
+    "HF_HUB_DISABLE_SYMLINKS_WARNING=1",
+]
+filterwarnings = [
+    "ignore:pkg_resources is deprecated as an API.*:UserWarning",
+    "ignore:Deprecated call to `pkg_resources.declare_namespace.*:DeprecationWarning",
+    "ignore:*\"is\" with a literal. Did you mean \"==\"?*:SyntaxWarning",
+]
+
+[tool.ruff]
+# Set line length to match style guide
+line-length = 88
+# Target Python 3.11
+target-version = "py311"
+# Include Jupyter notebooks
+extend-include = ["*.ipynb"]
+# Respect gitignore
+respect-gitignore = true
+# Use src/ layout for import resolution and isort
+src = ["src", "benchmark"]
+# Exclude none-codebase code files from linting
+extend-exclude = ["scripts/**", "vendor/**", "docs/**", "tests/resources/**"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I"     # isort
+]
+extend-select = [
+    "TID",  # flake8 tidy imports
+    "T20",  # flake8-print
+    #"SLF",  # flake8-self (private member access)
+    #"RUF",  # Ruff-specific rules
+    "ERA",  # eradicate (commented-out code)
+    #"TRY",  # tryceratops (exception handling)
+    #"C90",  # mccabe complexity
+    "DTZ",  # flake8-datetimez (timezone-aware datetimes)
+    #"N",    # pep8-naming
+    "PIE",  # flake8-pie (small correctness / style)
+    "ISC",  # flake8-implicit-str-concat
+    "PTH",  # flake8-use-pathlib
+    "YTT",  # flake8-2020 (version-specific checks)
+    "ASYNC" # flake8-async
+]
+# Ignore specific rules that are either handled elsewhere or too noisy
+ignore = [
+    "E501",   # Line length handled by formatter
+    "B008",   # Function calls in default arguments (often used in Pydantic)
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",  # Don't require docstrings everywhere
+    "ERA001"
+]
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+# Never autofix these
+unfixable = []
+
+[tool.ruff.lint.pydocstyle]
+# Match Google-style docstrings found in the codebase
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+# Keep default McCabe complexity threshold
+max-complexity = 10
+
+[tool.ruff.lint.pyupgrade]
+# Be conservative with runtime typing rewrites
+keep-runtime-typing = true
+
+[tool.ruff.lint.isort]
+# Known first-party imports for proper sorting
+known-first-party = ["histrel", "benchmark"]
+# Keep imports on separate lines when multiple
+force-single-line = false
+# Combine as-imports to reduce duplication
+combine-as-imports = true
+
+[tool.deptry]
+known_first_party = ["histrel", "benchmark"]
+
+[tool.mypy]
+python_version = "3.11"
+# Resolve first-party imports from the source tree, matching pyrightconfig.json.
+mypy_path = ["src", "benchmark/vendor/SWE-bench"]
+# Vendored SWE-bench clone is third-party code; its untyped deps are not ours.
+exclude = ['^benchmark/vendor/']
+
+[[tool.mypy.overrides]]
+module = ["swebench", "swebench.*"]
+follow_imports = "silent"
+
+[tool.deptry.per_rule_ignores]
+DEP004 = ["pytest"]
+DEP002 = [
+    "openai"
+]
+
+[tool.uv.sources]
+context-namespace = { path = "../context-namespace" }
+# SWE-bench is installed from the vendored snapshot so the harness uses the
+# pinned conda lockfiles the PyPI wheel omits. pip ignores this table;
+# pip-based installs use benchmark/requirements-pip.txt instead.
+swebench = { path = "benchmark/vendor/SWE-bench", editable = true }
+
+
+[tool.ruff.lint.per-file-ignores]
+# Disable I001 for benchmark suite due to incorrect classification of `benchmark` module
+"benchmark/**/*.py" = ["I001", "ASYNC240"]
+# Disable T201 for benchmark validation tests to allow for `print()` IO
+"benchmark/tests/predict/scripts/*.py" = ["T201"]
+# Relax certain rules in tests
+"tests/**/*.py" = ["D", "SLF", "T20", "S101", "E402", "ASYNC240"]
+# Allow unused imports in __init__ files
+"**/__init__.py" = ["F401"]
+# Disable TID outside src/ so TID applies only within src/
+"!src/**/*.py" = ["TID"]
+# Disable ASYNC240 in src - pathlib.Path usage is acceptable in asyncio-based codebase
+"src/**/*.py" = ["ASYNC240"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+# Use spaces for indentation
+indent-style = "space"
+# Format code examples in docstrings
+docstring-code-format = true
+docstring-code-line-length = 72
+
+[dependency-groups]
+benchmark = [
+    "aiohttp>=3.13.2",
+    "datasets>=3.6.0",
+    "docker>=7.1.0",
+    "swebench==4.1.0",
+    "types-docker>=7.1.0.20251125",
+    "types-pyyaml>=6.0.12.20250915",
+]
+dev = [
+    "pyright>=1.1.405",
+    "mypy>=1.17.1",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.0",
+    "radon>=6.0.1",
+    "hypothesis>=6.0.0",
+    "sphinx>=8.0.0",
+    "sphinx-rtd-theme>=3.0.0",
+    "ruff>=0.12.5",
+    "freezegun>=1.5.5",
+    "deptry>=0.23.1",
+    "interrogate>=1.7.0",
+    "scalene==1.5.45",
+    "xdoctest>=1.2.0",
+    "pytest-timeout>=2.4.0",
+    "vulture>=2.14",
+    "complexipy>=4.2.0",
+    "mpmath>=1.3.0",
+]
+

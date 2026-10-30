@@ -1,0 +1,8 @@
+{
+  "_comment": "Checked-in last-resort Fireworks prices (USD per 1M tokens). Served only when the model page fetch fails and the persistent cache has no entry for the model. Update from https://app.fireworks.ai/models/fireworks/<model> when adding models.",
+  "accounts/fireworks/models/deepseek-v4p1-flash-1017": {
+    "uncached_input_per_1m": 0.15,
+    "cached_input_per_1m": 0.03,
+    "output_per_1m": 0.5
+  }
+}

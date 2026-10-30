@@ -1,0 +1,27 @@
+# Histrel agent configuration.
+#
+# This is the canonical agent config. The benchmark harness copies it into the
+# target repository, replaces the placeholder values below (session id, task id,
+# model, rendered system prompts), and runs ``python -m histrel`` on
+# the result. Harness-side settings live in ``benchmark/bench_settings.toml``.
+
+schema_version = 1
+session_id = "placeholder"
+task_id = "placeholder"
+
+# mode: agent loop mode — "stateless" (per-iteration stateless user message)
+# or "react" (full history replayed).
+mode = "react"
+
+agent_system_prompt = { initialize = "placeholder", step = "placeholder" }
+
+model_provider = "fireworks"
+model_name = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
+model_top_p = 0.95
+model_reasoning_effort = "high"
+model_context_limit_tokens = 1000000
+model_max_tokens_output = 131072
+model_api_key_env = "FIREWORKS_API_KEY"
+
+[budgets]
+max_turns = 300

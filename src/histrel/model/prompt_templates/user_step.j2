@@ -1,0 +1,46 @@
+{# user_step.j2 - Post-first-iteration user message #}
+# Inputs
+
+{{ instance_problem }}
+
+{% if reminder %}
+## Reminder
+
+{{ reminder }}
+
+{% endif %}
+## Observations
+
+{% for obs in observations%}
+- {{ obs | indent(2, first=false, blank=true) }}
+{% endfor %}
+
+Current iteration: {{ iter_crnt }}
+
+## Current Reasoning-State
+
+{{ reasoning_state }}
+
+## Available Tools
+
+{% for tool in available_tools %}
+- Name: {{ tool.name }}
+  Description: {{ tool.definition.function.description | indent(2, first=false, blank=true) }}
+  Parameters:
+{% if tool.definition.function.parameters.properties | length > 0 %}
+{% for param_name, spec in tool.definition.function.parameters.properties.items() %}
+    - {{ param_name }} ({{ spec.type }}{% if param_name in tool.definition.function.parameters.required %}; required{% endif %}): {{ spec.description | indent(4, first=false, blank=true) }}
+{% endfor %}
+{% else %}
+    - None
+{% endif %}
+  Examples:
+{% for example in tool.examples %}
+    - {{ example | indent(4, first=false, blank=true) }}
+{% endfor %}
+{% endfor %}
+
+---
+
+Respond with the next reasoning-state and use the "run" tool to request tool
+executions from the Available tools to be executed.
