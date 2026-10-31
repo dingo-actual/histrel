@@ -168,6 +168,7 @@ def _per_repetition(
 def summarize_resolution(
     reports: Sequence[tuple[str, Mapping[str, Any]]],
     instance_ids: Sequence[str] | None = None,
+    repetitions: int | None = None,
 ) -> dict[str, Any]:
     """Summarize the resolution reports of every graded repetition.
 
@@ -177,18 +178,25 @@ def summarize_resolution(
     that set so a report graded over a wider dataset cannot inflate the
     rates.
 
+    A per-instance rate is measured over the scheduled repetitions, not over
+    the reports that happen to mention the instance: a repetition that never
+    produced a prediction is a failed attempt, not a missing measurement.
+
     Args:
         reports (Sequence[tuple[str, Mapping[str, Any]]]): Pairs of evaluation
             run ID and report, in repetition order.
         instance_ids (Sequence[str] | None): Instance IDs the run intended to
             grade. Defaults to None, which trusts each report's own total.
+        repetitions (int | None): Number of scheduled repetitions. Defaults to
+            None, which uses the number of reports.
 
     Returns:
         (dict[str, Any]) Per-repetition counts, resolve-rate statistics across
-        repetitions, per-instance resolution counts, and coverage of the
-        intended set.
+        repetitions, per-instance resolution counts over the scheduled
+        repetitions, and coverage of the intended set.
     """
     intended = {str(instance_id) for instance_id in instance_ids or []}
+    scheduled = repetitions if repetitions is not None else len(reports)
     per_repetition = [
         _per_repetition(_repetition_of(run_id), run_id, report, intended)
         for run_id, report in reports
@@ -196,17 +204,15 @@ def summarize_resolution(
     rates = [entry["resolve_rate"] for entry in per_repetition]
     # Seed the intended IDs so an instance without a prediction or with a
     # failed attempt is reported with zero resolutions instead of vanishing.
-    instance_runs: dict[str, int] = dict.fromkeys(sorted(intended), 0)
+    instance_ids_all = set(intended)
     instance_resolved: dict[str, int] = {}
-    covered: set[str] = set()
     for _run_id, report in reports:
         resolved_ids = {
             str(instance_id) for instance_id in report.get("resolved_ids", [])
         }
         report_ids = _report_instances(report)
-        covered |= report_ids
+        instance_ids_all |= report_ids
         for instance_id in report_ids:
-            instance_runs[instance_id] = instance_runs.get(instance_id, 0) + 1
             if instance_id in resolved_ids:
                 instance_resolved[instance_id] = (
                     instance_resolved.get(instance_id, 0) + 1
@@ -214,6 +220,7 @@ def summarize_resolution(
 
     return {
         "repetitions": len(per_repetition),
+        "scheduled_repetitions": scheduled,
         "per_repetition": per_repetition,
         "resolve_rate": {
             "count": len(rates),
@@ -224,37 +231,53 @@ def summarize_resolution(
         },
         "instances": {
             instance_id: {
-                "runs": runs,
+                "runs": scheduled,
                 "resolved": instance_resolved.get(instance_id, 0),
                 "resolve_rate": _resolve_rate(
-                    instance_resolved.get(instance_id, 0), runs
+                    instance_resolved.get(instance_id, 0), scheduled
                 ),
             }
-            for instance_id, runs in sorted(instance_runs.items())
+            for instance_id in sorted(instance_ids_all)
         },
-        "coverage": _coverage(reports, intended),
+        "coverage": _coverage(reports, intended, scheduled),
     }
 
 
 def _coverage(
-    reports: Sequence[tuple[str, Mapping[str, Any]]], intended: set[str]
+    reports: Sequence[tuple[str, Mapping[str, Any]]],
+    intended: set[str],
+    scheduled: int,
 ) -> dict[str, Any]:
-    """Check that the reports cover the intended instance set.
+    """Check that the reports cover every scheduled instance/repetition pair.
+
+    Coverage is tracked per ``(instance_id, repetition)`` pair: an instance
+    that appears in one repetition but not in another has a missing
+    prediction for the other one.
 
     Args:
         reports (Sequence[tuple[str, Mapping[str, Any]]]): Pairs of evaluation
             run ID and report.
         intended (set[str]): Instance IDs the run intended to grade.
+        scheduled (int): Number of scheduled repetitions.
 
     Returns:
-        (dict[str, Any]) Intended count, IDs no report covered (missing
-        predictions), and IDs graded outside the intended set.
+        (dict[str, Any]) Intended count, scheduled attempt count, the missing
+        pairs, the instances with at least one missing repetition, and IDs
+        graded outside the intended set.
     """
-    covered: set[str] = set()
-    for _run_id, report in reports:
-        covered |= _report_instances(report)
-    unexpected = sorted(covered - intended)
-    missing = sorted(intended - covered)
+    covered: set[tuple[str, int]] = set()
+    for run_id, report in reports:
+        repetition = _repetition_of(run_id)
+        covered |= {
+            (instance_id, repetition) for instance_id in _report_instances(report)
+        }
+    expected = {
+        (instance_id, repetition)
+        for instance_id in intended
+        for repetition in range(1, scheduled + 1)
+    }
+    missing = sorted(expected - covered)
+    unexpected = sorted({instance_id for instance_id, _ in covered} - intended)
     if unexpected:
         logger.bind(
             component="benchmark.predict.resolution",
@@ -267,7 +290,12 @@ def _coverage(
         )
     return {
         "intended_instances": len(intended),
-        "missing_instances": missing,
+        "scheduled_attempts": len(expected),
+        "missing_coverage": [
+            {"instance_id": instance_id, "repetition": repetition}
+            for instance_id, repetition in missing
+        ],
+        "missing_instances": sorted({instance_id for instance_id, _ in missing}),
         "unexpected_instances": unexpected,
     }
 
@@ -276,7 +304,9 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
     """Aggregate the per-repetition resolution reports of a repeated run.
 
     The instance IDs recorded in the run metadata are the denominator, and
-    every report is checked against them.
+    every report is checked against them. Per-instance rates are measured
+    over the scheduled repetitions, which are the repetition directories in
+    the run root.
 
     Args:
         run_root (Path): Run directory that holds the repetition directories.
@@ -298,7 +328,7 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
 
     path = run_root / RESOLUTION_FILE_NAME
     intent = sorted(_intended_instance_ids(run_root))
-    write_json(path, summarize_resolution(reports, intent))
+    write_json(path, summarize_resolution(reports, intent, len(repeat_dirs)))
     logger.bind(
         component="benchmark.predict.resolution",
         origin="bench_harness_predict",

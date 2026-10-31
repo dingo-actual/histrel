@@ -404,7 +404,7 @@ class Test04Unit09ScoreCli03Defaults:
         assert aggregate["per_repetition"][0]["resolve_rate"] == 0.5
         assert aggregate["coverage"]["intended_instances"] == 2
         assert aggregate["coverage"]["missing_instances"] == ["inst-2"]
-        assert aggregate["instances"]["inst-2"]["runs"] == 0
+        assert aggregate["instances"]["inst-2"]["runs"] == 1
 
     def test_04_unit_09_score_cli_03_defaults_06_flags_unexpected_instances(
         self, tmp_path: Path, monkeypatch: Any

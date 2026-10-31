@@ -142,12 +142,14 @@ class Test04Unit08Resolution01Summary:
         assert summary["per_repetition"][0]["total_instances"] == 2
         assert summary["per_repetition"][0]["resolve_rate"] == 0.5
         assert summary["instances"]["b"] == {
-            "runs": 0,
+            "runs": 1,
             "resolved": 0,
             "resolve_rate": 0.0,
         }
         assert summary["coverage"] == {
             "intended_instances": 2,
+            "scheduled_attempts": 2,
+            "missing_coverage": [{"instance_id": "b", "repetition": 1}],
             "missing_instances": ["b"],
             "unexpected_instances": [],
         }
@@ -164,6 +166,45 @@ class Test04Unit08Resolution01Summary:
         # Assert
         assert summary["coverage"]["unexpected_instances"] == ["z"]
         assert summary["per_repetition"][0]["resolve_rate"] == 1.0
+
+    def test_04_unit_08_resolution_01_summary_07_rate_over_scheduled_repetitions(
+        self,
+    ) -> None:
+        # Arrange — two repetitions were scheduled, but the second never
+        # produced a prediction, so its report omits the instance.
+        reports = [("run-repeat-01", _report(1, ["a"], []))]
+
+        # Act
+        summary = summarize_resolution(reports, ["a"], 2)
+
+        # Assert — one success out of two scheduled attempts, not one of one.
+        assert summary["scheduled_repetitions"] == 2
+        assert summary["instances"]["a"] == {
+            "runs": 2,
+            "resolved": 1,
+            "resolve_rate": 0.5,
+        }
+        assert summary["coverage"]["missing_coverage"] == [
+            {"instance_id": "a", "repetition": 2}
+        ]
+        assert summary["coverage"]["missing_instances"] == ["a"]
+
+    def test_04_unit_08_resolution_01_summary_08_coverage_tracks_pairs(
+        self,
+    ) -> None:
+        # Arrange — both instances are covered in repetition 1 only.
+        reports = [("run-repeat-01", _report(2, ["a"], ["b"]))]
+
+        # Act
+        summary = summarize_resolution(reports, ["a", "b"], 2)
+
+        # Assert
+        assert summary["coverage"]["scheduled_attempts"] == 4
+        assert summary["coverage"]["missing_coverage"] == [
+            {"instance_id": "a", "repetition": 2},
+            {"instance_id": "b", "repetition": 2},
+        ]
+        assert summary["coverage"]["missing_instances"] == ["a", "b"]
 
 
 class Test04Unit08Resolution02Aggregate:
@@ -279,3 +320,25 @@ class Test04Unit08Resolution02Aggregate:
         written = read_json(path)
         assert written["per_repetition"][0]["resolve_rate"] == 0.5
         assert written["coverage"]["missing_instances"] == ["b"]
+
+    def test_04_unit_08_resolution_02_aggregate_07_counts_ungraded_repetition(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — repetition 2 produced no prediction, so its report never
+        # listed the instance
+        run_root = tmp_path / "my-run"
+        for index in (1, 2):
+            (run_root / repeat_dir_name(index)).mkdir(parents=True)
+        _write_metadata(run_root, ["a"])
+        _write_reports(run_root, {1: _report(1, ["a"], [])})
+
+        # Act
+        path = aggregate_resolution(run_root)
+
+        # Assert — one resolved attempt out of two scheduled repetitions
+        written = read_json(path)
+        assert written["scheduled_repetitions"] == 2
+        assert written["instances"]["a"]["resolve_rate"] == 0.5
+        assert written["coverage"]["missing_coverage"] == [
+            {"instance_id": "a", "repetition": 2}
+        ]
