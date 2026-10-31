@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from benchmark.common.io import write_jsonl
+from benchmark.common.io import write_jsonl, write_run_metadata
 from benchmark.predict import cli
 from benchmark.predict.config import PredictorConfig
 from benchmark.predict.repeat import (
@@ -55,6 +55,7 @@ def _write_repetition(
     *,
     predictions: list[dict[str, str]] | None = None,
     usage: list[dict[str, Any]] | None = None,
+    scheduled: list[str] | None = None,
 ) -> Path:
     """Write one repetition directory with its artifacts."""
     directory = run_root / repeat_dir_name(index)
@@ -63,6 +64,15 @@ def _write_repetition(
         write_jsonl(directory / PREDICTIONS_FILE_NAME, predictions)
     if usage is not None:
         write_jsonl(directory / USAGE_FILE_NAME, usage)
+    if scheduled is not None:
+        write_run_metadata(
+            output_dir=directory,
+            run_name=directory.name,
+            dataset_id="princeton-nlp/SWE-bench_Verified",
+            split="test",
+            instance_ids=scheduled,
+            predictions_files=[PREDICTIONS_FILE_NAME],
+        )
     return directory
 
 
@@ -212,6 +222,79 @@ class Test04Unit01Repeat02AggregateUsage:
         # Token statistics still use every attempt.
         assert overall["metrics"]["tokens_total"]["count"] == 3
         assert overall["metrics"]["tokens_total"]["sum"] == pytest.approx(90)
+
+    def test_04_unit_01_repeat_02_aggregate_usage_04_missing_attempt_counted(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the repetition was scheduled to run two instances but
+        # only one ever recorded usage.
+        started = _write_repetition(
+            tmp_path,
+            1,
+            usage=[_usage_row("inst-1", 10)],
+            scheduled=["inst-1", "inst-2"],
+        )
+
+        # Act
+        summary = collect_usage([started])
+
+        # Assert — a scheduled attempt without a record never started, which
+        # is distinct from an attempt that started but reported no cost.
+        assert summary["overall"]["count"] == 1
+        assert summary["overall"]["missing_attempts"] == 1
+        assert summary["overall"]["unknown_costs"] == 0
+        assert summary["overall"]["cost_complete"] is False
+        assert summary["instances"]["inst-2"] == {
+            "count": 0,
+            "cost_complete": False,
+            "unknown_costs": 0,
+            "missing_attempts": 1,
+            "metrics": {},
+        }
+
+    def test_04_unit_01_repeat_02_aggregate_usage_05_unknown_cost_not_missing(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the attempt ran and failed, so it has a record with an
+        # unknown cost.
+        failed = {
+            **_usage_row("inst-1", 0),
+            "cost_total": None,
+            "cost_complete": False,
+        }
+        started = _write_repetition(tmp_path, 1, usage=[failed], scheduled=["inst-1"])
+
+        # Act
+        summary = collect_usage([started])
+
+        # Assert
+        assert summary["overall"]["count"] == 1
+        assert summary["overall"]["unknown_costs"] == 1
+        assert summary["overall"]["missing_attempts"] == 0
+        assert summary["overall"]["cost_complete"] is False
+
+    def test_04_unit_01_repeat_02_aggregate_usage_06_complete_when_all_recorded(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        dirs = [
+            _write_repetition(
+                tmp_path,
+                index,
+                usage=[_usage_row("inst-1", 10)],
+                scheduled=["inst-1"],
+            )
+            for index in (1, 2)
+        ]
+
+        # Act
+        summary = collect_usage(dirs)
+
+        # Assert
+        assert summary["overall"]["count"] == 2
+        assert summary["overall"]["missing_attempts"] == 0
+        assert summary["overall"]["unknown_costs"] == 0
+        assert summary["overall"]["cost_complete"] is True
 
 
 class Test04Unit09Repeat03AggregateArtifacts:

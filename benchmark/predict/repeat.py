@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from benchmark.common.io import read_jsonl, write_json, write_jsonl
+from benchmark.common.schemas import read_run_metadata
 from benchmark.predict.usage_helpers import known_cost, known_measurement
 from loguru import logger
 
@@ -124,6 +125,33 @@ def collect_predictions(repeat_dirs: Sequence[Path]) -> list[dict[str, Any]]:
     ]
 
 
+def _scheduled_instances(directory: Path) -> list[str]:
+    """Return the instance IDs a repetition was scheduled to run.
+
+    Args:
+        directory (Path): Repetition directory.
+
+    Returns:
+        (list[str]) Scheduled instance IDs, or an empty list when the
+        repetition wrote no run metadata to describe its work.
+    """
+    path = directory / "run_metadata.json"
+    if not path.exists():
+        return []
+    try:
+        return list(read_run_metadata(path).instance_ids)
+    except (OSError, ValueError) as exc:
+        logger.bind(
+            component="benchmark.predict.repeat",
+            event="repeat.metadata.unreadable",
+            origin="bench_harness_predict",
+        ).warning(
+            f"Cannot reconcile repetition against run metadata: {exc}",
+            directory=str(directory),
+        )
+        return []
+
+
 def _metric_stats(values: Sequence[float]) -> dict[str, float | int]:
     """Return the sample size, sum, mean, and median of a metric.
 
@@ -160,7 +188,10 @@ def _cost_is_unknown(record: dict[str, Any]) -> bool:
 
 
 def _summarize(
-    samples: dict[str, list[float]], count: int, unknown_costs: int
+    samples: dict[str, list[float]],
+    count: int,
+    unknown_costs: int,
+    missing_attempts: int = 0,
 ) -> dict[str, Any]:
     """Build the sample statistics block for one scope.
 
@@ -168,15 +199,18 @@ def _summarize(
         samples (dict[str, list[float]]): Metric name to sampled values.
         count (int): Number of usage records summarized.
         unknown_costs (int): Number of records with an unknown cost.
+        missing_attempts (int): Number of scheduled attempts without a
+            record. Defaults to 0, used when the schedule is unknown.
 
     Returns:
         (dict[str, Any]) Record count, cost completeness flag, unknown-cost
-        count, and per-metric statistics.
+        count, missing-attempt count, and per-metric statistics.
     """
     return {
         "count": count,
-        "cost_complete": unknown_costs == 0,
+        "cost_complete": unknown_costs == 0 and missing_attempts == 0,
         "unknown_costs": unknown_costs,
+        "missing_attempts": missing_attempts,
         "metrics": {
             field: _metric_stats(values) for field, values in samples.items() if values
         },
@@ -186,25 +220,34 @@ def _summarize(
 def collect_usage(repeat_dirs: Sequence[Path]) -> dict[str, Any]:
     """Aggregate usage records across repetitions.
 
+    Every scheduled instance/repetition pair is accounted for: pairs with a
+    record contribute samples, pairs without one are counted as
+    ``missing_attempts`` (the attempt never started).
+
     Args:
         repeat_dirs (Sequence[Path]): Repetition directories, in run order.
 
     Returns:
         (dict[str, Any]) Per-instance statistics, overall statistics, and the
-        repetition count.
+        repetition count. ``count`` plus ``missing_attempts`` is the number
+        of scheduled attempts.
     """
     per_instance: dict[str, dict[str, list[float]]] = {}
     per_instance_count: dict[str, int] = {}
     per_instance_unknown_costs: dict[str, int] = {}
+    per_instance_missing: dict[str, int] = {}
     overall: dict[str, list[float]] = {field: [] for field in _STAT_FIELDS}
     overall_count = 0
     overall_unknown_costs = 0
+    overall_missing = 0
 
     for directory in repeat_dirs:
+        recorded: set[str] = set()
         for record in _read_records(directory, USAGE_FILE_NAME):
             instance_id = record.get("instance_id")
             if not isinstance(instance_id, str):
                 continue
+            recorded.add(instance_id)
             samples = per_instance.setdefault(
                 instance_id, {field: [] for field in _STAT_FIELDS}
             )
@@ -225,17 +268,29 @@ def collect_usage(repeat_dirs: Sequence[Path]) -> dict[str, Any]:
                 samples[field].append(float(measurement))
                 overall[field].append(float(measurement))
 
+        for instance_id in _scheduled_instances(directory):
+            if instance_id in recorded:
+                continue
+            per_instance.setdefault(instance_id, {field: [] for field in _STAT_FIELDS})
+            per_instance_missing[instance_id] = (
+                per_instance_missing.get(instance_id, 0) + 1
+            )
+            overall_missing += 1
+
     return {
         "repetitions": len(repeat_dirs),
         "instances": {
             instance_id: _summarize(
                 samples,
-                per_instance_count[instance_id],
+                per_instance_count.get(instance_id, 0),
                 per_instance_unknown_costs.get(instance_id, 0),
+                per_instance_missing.get(instance_id, 0),
             )
             for instance_id, samples in per_instance.items()
         },
-        "overall": _summarize(overall, overall_count, overall_unknown_costs),
+        "overall": _summarize(
+            overall, overall_count, overall_unknown_costs, overall_missing
+        ),
     }
 
 

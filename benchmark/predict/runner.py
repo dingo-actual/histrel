@@ -59,6 +59,70 @@ def _empty_usage_accumulator() -> dict[str, int | float]:
     }
 
 
+def _unknown_attempt_usage() -> UsageData:
+    """Return usage data for an attempt that reported no measurement.
+
+    Returns:
+        (UsageData) ``none`` and ``total`` records with an unknown cost, so
+            the attempt is counted as unpriced instead of free.
+    """
+    none_record: UsageRecordData = {"cost_total": None, "cost_complete": False}
+    total_record: UsageRecordData = {"cost_total": None, "cost_complete": False}
+    return {"none": none_record, "total": total_record}
+
+
+def _record_failed_attempt(
+    *,
+    run_name: str,
+    instance_id: str,
+    usage_file: Path,
+    session_usage: SessionUsage,
+    error: str,
+) -> None:
+    """Record a started attempt that raised before reporting usage.
+
+    The attempt has no measurements, so every measurement is the ``-1``
+    unknown sentinel and the cost is None. That keeps the attempt visible
+    to the aggregate as started-but-incomplete instead of dropping it.
+
+    Args:
+        run_name (str): Run directory name.
+        instance_id (str): SWE-bench instance identifier.
+        usage_file (Path): Per-run usage JSONL file to append to.
+        session_usage (SessionUsage): Session totals to update.
+        error (str): Error text that ended the attempt.
+    """
+    unknown = -1
+    usage_record = UsageRecord(
+        instance_id=instance_id,
+        execution_time=-1.0,
+        tokens_input=unknown,
+        tokens_output=unknown,
+        tokens_cache_read=unknown,
+        tokens_cache_write=unknown,
+        tokens_total=unknown,
+        cost_total=None,
+        cost_complete=False,
+        maximum_context=unknown,
+        raw_usage_data={"attempt_failed": True, "error": error},
+    )
+    append_jsonl(usage_file, usage_record.model_dump())
+
+    usage_data = _unknown_attempt_usage()
+    session_usage[instance_id] = usage_data
+    accumulate_usage(session_usage, usage_data)
+
+    logger.bind(
+        run_name=run_name,
+        instance_id=instance_id,
+        agent_type=AGENT_TYPE,
+        component="benchmark.predict.runner",
+        event="usage.attempt_unknown",
+        usage_file=str(usage_file),
+        origin="bench_harness_predict",
+    ).warning("Recorded failed attempt with unknown usage")
+
+
 def _record_prediction(
     *,
     run_name: str,
@@ -244,6 +308,14 @@ def _run_agent_instance(
                 component="benchmark.predict.runner",
                 origin="bench_harness_predict",
             ).error(f"{AGENT_TYPE} patch generation failed", error=str(exc))
+
+        _record_failed_attempt(
+            run_name=run_name,
+            instance_id=instance_id,
+            usage_file=usage_file,
+            session_usage=session_usage,
+            error=str(exc),
+        )
 
 
 async def run_prediction(
