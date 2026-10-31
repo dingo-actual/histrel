@@ -7,7 +7,11 @@ artifacts stay inspectable on their own. This module merges those directories
 into aggregate files at ``<output_dir>/<run_name>/``:
 
 - ``bench_agent_predictions.jsonl``: every prediction from every repetition,
-  tagged with its 1-based ``repetition`` number.
+  tagged with its 1-based ``repetition`` number. This merged file is an
+  analysis artifact, not a grading input: SWE-bench keys predictions by
+  ``instance_id``, so grading it would keep only one prediction per instance.
+  Grade each ``repeat_NN/bench_agent_predictions.jsonl`` under its own
+  evaluation run ID, then aggregate with ``benchmark.predict.resolution``.
 - ``bench_agent_usage_aggregate.json``: per-instance and overall sample
   count, sum, mean, and median of each numeric usage metric, plus the
   number of records whose cost is unknown. Records with an unknown cost
