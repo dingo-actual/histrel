@@ -200,6 +200,7 @@ def _run_agent_instance(
     predictions_file: Path,
     usage_file: Path,
     session_usage: SessionUsage,
+    repetition: int,
 ) -> None:
     """Run the benchmark agent for one instance and record its results."""
 
@@ -209,6 +210,7 @@ def _run_agent_instance(
             image,
             config,
             timeout=config.swe_bench.timeout_seconds,
+            repetition=repetition,
         )
 
         _record_prediction(
@@ -249,6 +251,7 @@ async def run_prediction(
     instances: list[dict],
     *,
     build_images: bool = True,
+    repetition: int = 1,
 ) -> Path:
     """Main prediction orchestration with Rich progress bars.
 
@@ -262,6 +265,8 @@ async def run_prediction(
         build_images (bool): Build the instance images. Repeated runs pass
             False after the first repetition so images are built once.
             Defaults to True.
+        repetition (int): 1-based repetition number of this run. Defaults
+            to 1.
 
     Returns:
         (Path) Path to output directory containing predictions and artifacts.
@@ -532,6 +537,7 @@ async def run_prediction(
                     predictions_file=predictions_file,
                     usage_file=usage_file,
                     session_usage=session_usage,
+                    repetition=repetition,
                 )
 
             progress.update(instance_task, advance=1)

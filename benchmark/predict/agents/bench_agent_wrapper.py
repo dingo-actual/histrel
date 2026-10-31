@@ -37,7 +37,7 @@ from benchmark.predict.agents.repo import GitRepoManager
 from benchmark.predict.agents.templates import MESSAGE_TEMPLATE, render_template
 from benchmark.predict.config import Mode
 from benchmark.predict.usage_helpers import known_cost, known_measurement
-from benchmark.predict.types import AGENT_TYPE
+from benchmark.predict.types import AGENT_TYPE, build_attempt_identity
 import histrel
 from histrel.logging.agent_logger import (
     AGENT_LOG_EXPORT_NAME,
@@ -48,6 +48,18 @@ from loguru import logger
 
 # Default model when bench_settings.toml does not specify one.
 _DEFAULT_MODEL = "accounts/fireworks/models/glm-5p3-flash"
+
+
+def _repetition_from_env() -> int:
+    """Return the repetition number passed by the harness.
+
+    Returns:
+        (int) 1-based repetition number; 1 when unset or malformed.
+    """
+    try:
+        return int(os.environ.get("REPETITION") or "1")
+    except ValueError:
+        return 1
 
 
 def _agent_config_template_path() -> Path:
@@ -589,7 +601,16 @@ class BenchAgentWrapper:
         # The agent writes to {output_dir}/{session_id}/artifacts/costs.json
         agent_artifact_dir = output_dir / session_id / "artifacts"
         usage_file = agent_artifact_dir / "costs.json"
-        usage_data = self._load_usage_data(usage_file)
+        # Identity of this attempt travels with the usage record so the
+        # host can reject a record it did not ask for.
+        identity = build_attempt_identity(
+            run_name=os.environ.get("RUN_NAME", ""),
+            repetition=_repetition_from_env(),
+            mode=mode,
+            instance_id=instance.get("instance_id", "unknown"),
+            session_id=session_id,
+        )
+        usage_data = {"identity": identity, **self._load_usage_data(usage_file)}
 
         # Export the agent's /tmp log file into the session artifacts
         # directory (mounted to the host artifacts location).

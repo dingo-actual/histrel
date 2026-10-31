@@ -266,11 +266,21 @@ class Test04Unit02Repeat05CliExecution:
         calls: list[dict[str, object]] = []
 
         async def _fake_run_prediction(  # noqa: RUF029
-            config: PredictorConfig, instances: list[dict], *, build_images: bool = True
+            config: PredictorConfig,
+            instances: list[dict],
+            *,
+            build_images: bool = True,
+            repetition: int = 1,
         ) -> Path:
             run_name = config.run_name
             run_dir = Path(config.output_dir) / run_name
-            calls.append({"run_name": run_name, "build_images": build_images})
+            calls.append(
+                {
+                    "run_name": run_name,
+                    "build_images": build_images,
+                    "repetition": repetition,
+                }
+            )
             write_jsonl(
                 run_dir / PREDICTIONS_FILE_NAME,
                 [_prediction_row("inst-1", f"patch-{run_name}")],
@@ -324,6 +334,7 @@ class Test04Unit02Repeat05CliExecution:
             False,
             False,
         ]
+        assert [call["repetition"] for call in recorded_runs] == [1, 2, 3]
 
     def test_04_unit_02_repeat_05_cli_execution_02_aggregates_every_run(
         self,

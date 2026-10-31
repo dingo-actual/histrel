@@ -14,6 +14,7 @@ import os
 import shutil
 import time
 from pathlib import Path
+from typing import cast
 
 from benchmark.common.docker_utils import (
     DockerClientLike,
@@ -22,8 +23,48 @@ from benchmark.common.docker_utils import (
 from benchmark.common.io import ensure_dir
 from benchmark.predict.config import PredictorConfig
 from benchmark.predict.docker.instance_record import build_agent_instance
-from benchmark.predict.types import AGENT_TYPE, UsageData
+from benchmark.predict.types import (
+    AGENT_TYPE,
+    AttemptIdentity,
+    UsageData,
+    build_attempt_identity,
+    identity_matches,
+)
 from histrel.context.cost_calculator import PRICING_CACHE_ENV
+from loguru import logger
+
+
+def _read_attempt_usage(usage_path: Path, expected: AttemptIdentity) -> dict | None:
+    """Read this attempt's usage record and verify its identity.
+
+    Args:
+        usage_path (Path): Usage file inside the attempt's artifact dir.
+        expected (AttemptIdentity): Identity of the attempt being ingested.
+
+    Returns:
+        (dict | None) Parsed usage data, or None when the file is missing,
+            unreadable, or belongs to a different attempt. Usage from
+            another instance, repetition, or mode is never attributed to
+            this one.
+    """
+    try:
+        data = json.loads(usage_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    identity = data.get("identity")
+    if not identity_matches(identity, expected):
+        logger.bind(
+            component="benchmark.predict.docker.runner",
+            event="usage.identity_mismatch",
+            origin="bench_harness_predict",
+            usage_path=str(usage_path),
+            recorded_identity=identity,
+            expected_identity=dict(expected),
+        ).error("Discarding usage record that does not match this attempt")
+        return None
+    return data
 
 
 class DockerRunner:
@@ -43,6 +84,7 @@ class DockerRunner:
         env: dict[str, str] | None = None,
         network_mode: str = "bridge",
         timeout: int | None = None,
+        repetition: int = 1,
     ) -> tuple[Path, dict[str, float | UsageData | None], int]:
         """Run an agent container and return (patch_path, token_usage, exit_code).
 
@@ -50,10 +92,13 @@ class DockerRunner:
             instance: SWE-bench instance data.
             image: Docker image tag to use.
             config: Predictor configuration.
-            output_dir: Output directory path. Defaults to None.
+            output_dir: Artifacts root. Each attempt gets its own
+                subdirectory named after the instance. Defaults to None.
             env: Additional environment variables. Defaults to None.
             network_mode: Docker network mode. Defaults to "bridge".
             timeout: Timeout in seconds. Defaults to None.
+            repetition: 1-based repetition number of this attempt. Defaults
+                to 1.
 
         Returns:
             (Path, dict, int) Tuple of (patch_path, token_usage, exit_code).
@@ -64,21 +109,26 @@ class DockerRunner:
         if image is None:
             raise RuntimeError("An instance image is required to run the agent")
 
-        # Prepare output dir
-        out_dir = output_dir or (
+        # Each attempt writes into its own artifact directory, created empty
+        # right before launch: a record left by an earlier instance or an
+        # earlier attempt of this instance can never be read as this one's.
+        artifacts_root = output_dir or (
             Path(config.output_dir) / config.run_name / "artifacts"
         )
+        instance_id = instance.get("instance_id", "unknown")
+        out_dir = artifacts_root / instance_id
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
         ensure_dir(out_dir)
 
         # Patch path as written by the entrypoint
-        instance_id = instance.get("instance_id", "unknown")
         patch_path = out_dir / f"{AGENT_TYPE}_{instance_id}.jsonl"
 
         # Agent-facing instance record: allowlisted task fields only, written
         # outside the rw-mounted output dir. The container sees the same host
         # tree at /workspace/output, so a full dataset record placed there
         # would hand the agent the reference patch and eval metadata.
-        instance_mount_dir = out_dir.parent / "instance_mounts" / instance_id
+        instance_mount_dir = artifacts_root / "instance_mounts" / instance_id
         ensure_dir(instance_mount_dir)
         (instance_mount_dir / "instance.json").write_text(
             json.dumps(build_agent_instance(instance)), encoding="utf-8"
@@ -87,7 +137,7 @@ class DockerRunner:
         # Earlier runs kept the full record here; a resumed run must not
         # expose it through the output mount.
         with contextlib.suppress(OSError):
-            shutil.rmtree(out_dir / "tmp_instances")
+            shutil.rmtree(artifacts_root / "tmp_instances")
 
         # Volumes mapping
         volumes = {
@@ -139,6 +189,7 @@ class DockerRunner:
         environment["AGENT_MODE"] = config.mode
         environment["INSTANCE_ID"] = instance_id
         environment["SESSION_ID"] = session_id
+        environment["REPETITION"] = str(repetition)
 
         # Set TIMEOUT_SECONDS environment variable for subprocess timeout
         if timeout:
@@ -149,9 +200,9 @@ class DockerRunner:
             "true" if instance.get("has_test_runner", False) else "false"
         )
 
-        # Share one persistent Fireworks pricing cache file across the
-        # run's agent containers: /workspace/output is the shared rw mount,
-        # so the cache survives across containers and lands with the run's
+        # Share one Fireworks pricing cache file across the attempt's
+        # agent processes: /workspace/output is the attempt's rw mount, so
+        # the cache survives a crash and lands with the attempt's
         # artifacts. Both the benchmark agent and Histrel core read this
         # variable when they resolve model pricing.
         environment[PRICING_CACHE_ENV] = (
@@ -204,17 +255,23 @@ class DockerRunner:
 
         elapsed_time = time.time() - start_time
 
-        # Extract token usage from the agent's usage.json
+        # Extract token usage from the attempt's own usage.json, but only
+        # when the record identifies this exact attempt (run, repetition,
+        # mode, instance, session).
         usage_path = out_dir / f"{AGENT_TYPE}_usage.json"
         token_usage: dict[str, float | UsageData | None] = {
             "execution_time": elapsed_time,
             "usage_data": None,  # Will contain full usage.json content
         }
-        if usage_path.exists():
-            with contextlib.suppress(Exception):
-                usage_data: UsageData = json.loads(
-                    usage_path.read_text(encoding="utf-8")
-                )
-                token_usage["usage_data"] = usage_data
+        expected_identity = build_attempt_identity(
+            run_name=config.run_name,
+            repetition=repetition,
+            mode=config.mode,
+            instance_id=instance_id,
+            session_id=session_id,
+        )
+        usage_data = _read_attempt_usage(usage_path, expected_identity)
+        if usage_data is not None:
+            token_usage["usage_data"] = cast(UsageData, usage_data)
 
         return patch_path, token_usage, exit_code

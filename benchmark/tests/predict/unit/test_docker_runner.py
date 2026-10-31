@@ -6,9 +6,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+import benchmark.predict.docker.runner as runner_module
 from benchmark.predict.config import PredictorConfig
 from benchmark.predict.docker.instance_record import build_agent_instance
 from benchmark.predict.docker.runner import DockerRunner
+from benchmark.predict.types import build_attempt_identity
 from benchmark.tests.fixtures.docker_stubs import DockerClientStub
 
 
@@ -155,9 +159,139 @@ class Test04Unit02Docker02Runner02RunAgent:
         }
 
         # No path under the rw-mounted output dir may carry the full record.
-        assert mounts["/workspace/output"] == out_dir.resolve()
-        assert not mounts["/workspace/instance"].is_relative_to(out_dir.resolve())
+        attempt_dir = out_dir / "dummy"
+        assert mounts["/workspace/output"] == attempt_dir.resolve()
+        assert not mounts["/workspace/instance"].is_relative_to(attempt_dir.resolve())
         assert not stale_dir.exists()
+
+    def test_04_unit_02_docker_02_runner_02_run_agent_05_own_attempt_dir(
+        self, docker_client_stub: DockerClientStub, tmp_path: Path
+    ) -> None:
+        """Each attempt mounts and writes its own artifact directory."""
+        cfg = PredictorConfig(
+            output_dir=str(tmp_path / "results"), run_name="bench-attempts"
+        )
+        runner = DockerRunner(docker_client_stub)
+        out_dir = Path(cfg.output_dir) / cfg.run_name / "artifacts"
+
+        for instance_id in ("inst-a", "inst-b"):
+            runner.run_agent(
+                {"instance_id": instance_id, "repo": "owner/repo"},
+                image="swebench/test:latest",
+                config=cfg,
+                output_dir=out_dir,
+                timeout=5,
+                repetition=2,
+            )
+
+        output_mounts = [
+            Path(host)
+            for call in docker_client_stub.containers.run_calls
+            for host, spec in call["volumes"].items()
+            if spec["bind"] == "/workspace/output"
+        ]
+        assert output_mounts == [
+            (out_dir / "inst-a").resolve(),
+            (out_dir / "inst-b").resolve(),
+        ]
+        assert (
+            docker_client_stub.containers.run_calls[0]["environment"]["REPETITION"]
+            == "2"
+        )
+
+    def test_04_unit_02_docker_02_runner_02_run_agent_06_stale_usage_dropped(
+        self, docker_client_stub: DockerClientStub, tmp_path: Path
+    ) -> None:
+        """A usage record left by an earlier attempt is never ingested."""
+        cfg = PredictorConfig(
+            output_dir=str(tmp_path / "results"), run_name="bench-stale"
+        )
+        runner = DockerRunner(docker_client_stub)
+        out_dir = Path(cfg.output_dir) / cfg.run_name / "artifacts"
+        stale_usage = out_dir / "dummy" / "bench-agent_usage.json"
+        stale_usage.parent.mkdir(parents=True)
+        stale_usage.write_text(
+            json.dumps({"total": {"session_id": "other", "tokens_total": 999}}),
+            encoding="utf-8",
+        )
+
+        _, token_usage, _ = runner.run_agent(
+            {"instance_id": "dummy", "repo": "owner/repo"},
+            image="swebench/test:latest",
+            config=cfg,
+            output_dir=out_dir,
+            timeout=5,
+        )
+
+        assert token_usage["usage_data"] is None
+        assert not stale_usage.exists()
+
+    def test_04_unit_02_docker_02_runner_02_run_agent_07_identity_checked(
+        self,
+        docker_client_stub: DockerClientStub,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Only a record identifying this attempt (run, repetition, mode) is kept."""
+        cfg = PredictorConfig(
+            output_dir=str(tmp_path / "results"),
+            run_name="repeat_02",
+            mode="react",
+        )
+        runner = DockerRunner(docker_client_stub)
+        out_dir = Path(cfg.output_dir) / cfg.run_name / "artifacts"
+        instance_id = "dummy"
+        session_id = f"{cfg.run_name.replace('_', '-')}-bench-agent-{instance_id}"
+        written: dict[str, dict] = {}
+
+        def _fake_run_container(client, *, volumes, **kwargs):
+            host_dir = Path(
+                next(
+                    host
+                    for host, spec in volumes.items()
+                    if spec["bind"] == "/workspace/output"
+                )
+            )
+            (host_dir / "bench-agent_usage.json").write_text(
+                json.dumps(written["payload"]), encoding="utf-8"
+            )
+            return 0, "container-id"
+
+        monkeypatch.setattr(runner_module, "run_container", _fake_run_container)
+
+        # A record from another repetition must be discarded.
+        written["payload"] = {
+            "identity": build_attempt_identity(
+                run_name=cfg.run_name,
+                repetition=1,
+                mode=cfg.mode,
+                instance_id=instance_id,
+                session_id=session_id,
+            ),
+            "total": {"session_id": session_id, "tokens_total": 42},
+        }
+        _, mismatch_usage, _ = runner.run_agent(
+            {"instance_id": instance_id, "repo": "owner/repo"},
+            image="swebench/test:latest",
+            config=cfg,
+            output_dir=out_dir,
+            timeout=5,
+            repetition=2,
+        )
+
+        # A record that matches this attempt is ingested.
+        written["payload"]["identity"]["repetition"] = 2
+        _, match_usage, _ = runner.run_agent(
+            {"instance_id": instance_id, "repo": "owner/repo"},
+            image="swebench/test:latest",
+            config=cfg,
+            output_dir=out_dir,
+            timeout=5,
+            repetition=2,
+        )
+
+        assert mismatch_usage["usage_data"] is None
+        assert match_usage["usage_data"] == written["payload"]
 
 
 class Test04Unit02Docker03InstanceRecord:

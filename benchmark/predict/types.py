@@ -42,11 +42,81 @@ class UsageData(TypedDict, total=False):
     """Type for complete usage.json structure from the agent harness.
 
     Contains usage records keyed by record type (e.g., 'none', 'total')
-    or tool-specific identifiers.
+    or tool-specific identifiers, plus the identity of the attempt that
+    produced them.
     """
 
+    identity: AttemptIdentity
     none: UsageRecordData
     total: UsageRecordData
+
+
+class AttemptIdentity(TypedDict):
+    """Identity of one benchmark attempt (instance x repetition x mode).
+
+    Attributes:
+        run_name: Run directory name; a repeated run uses ``repeat_NN``.
+        repetition: 1-based repetition number.
+        mode: Agent mode the attempt ran with.
+        agent_type: Benchmark agent type.
+        instance_id: SWE-bench instance identifier.
+        session_id: Harness session identifier for this attempt.
+    """
+
+    run_name: str
+    repetition: int
+    mode: str
+    agent_type: str
+    instance_id: str
+    session_id: str
+
+
+def build_attempt_identity(
+    *,
+    run_name: str,
+    repetition: int,
+    mode: str,
+    instance_id: str,
+    session_id: str,
+) -> AttemptIdentity:
+    """Build the identity of one benchmark attempt.
+
+    Args:
+        run_name (str): Run directory name.
+        repetition (int): 1-based repetition number.
+        mode (str): Agent mode.
+        instance_id (str): SWE-bench instance identifier.
+        session_id (str): Harness session identifier.
+
+    Returns:
+        (AttemptIdentity) Identity recorded by the container and checked
+            by the host before ingesting a usage record.
+    """
+    return AttemptIdentity(
+        run_name=run_name,
+        repetition=int(repetition),
+        mode=mode,
+        agent_type=AGENT_TYPE,
+        instance_id=instance_id,
+        session_id=session_id,
+    )
+
+
+def identity_matches(identity: object, expected: AttemptIdentity) -> bool:
+    """Return whether a recorded identity matches the expected attempt.
+
+    Args:
+        identity (object): Identity read from a usage record.
+        expected (AttemptIdentity): Identity of the attempt being ingested.
+
+    Returns:
+        (bool) True only when every field matches. A missing or malformed
+            identity never matches.
+    """
+    if not isinstance(identity, dict):
+        return False
+    recorded = cast(dict[str, object], identity)
+    return all(recorded.get(key) == value for key, value in expected.items())
 
 
 # Type alias for token usage returned by DockerRunner.run_agent()

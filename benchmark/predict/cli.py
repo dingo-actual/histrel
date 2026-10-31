@@ -155,7 +155,7 @@ def _run_repeated(
     repeat_dirs: list[Path] = []
 
     for index in range(1, repeats + 1):
-        repetition = cfg.model_copy(
+        repetition_cfg = cfg.model_copy(
             update={
                 "output_dir": run_root.as_posix(),
                 "run_name": repeat_dir_name(index),
@@ -167,11 +167,18 @@ def _run_repeated(
             event="repeat.start",
         ).info(
             f"Starting repetition {index}/{repeats}",
-            run_name=repetition.run_name,
-            output_dir=repetition.output_dir,
+            run_name=repetition_cfg.run_name,
+            output_dir=repetition_cfg.output_dir,
         )
         repeat_dirs.append(
-            asyncio.run(run_prediction(repetition, instances, build_images=index == 1))
+            asyncio.run(
+                run_prediction(
+                    repetition_cfg,
+                    instances,
+                    build_images=index == 1,
+                    repetition=index,
+                )
+            )
         )
 
     return aggregate_repetitions(run_root, repeat_dirs)

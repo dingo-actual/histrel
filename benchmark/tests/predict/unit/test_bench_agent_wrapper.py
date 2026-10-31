@@ -1048,6 +1048,51 @@ class Test04Unit03BenchAgentWrapper05GeneratePatch:
             assert isinstance(result, tuple)
             assert mock_stderr.called
 
+    def test_04_unit_03_bench_agent_wrapper_05_patch_07_usage_identity(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Arrange
+        config_path = tmp_path / "histrel.toml"
+        config_path.write_text(_MINIMAL_TOML)
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        (repo_dir / ".git").mkdir()
+        instance = {"instance_id": "test-123"}
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        monkeypatch.setenv("RUN_NAME", "repeat_02")
+        monkeypatch.setenv("REPETITION", "2")
+
+        with (
+            make_bench_agent_wrapper(config_path) as wrapper,
+            patch.object(wrapper.repo_manager, "validate_repo"),
+            patch.object(wrapper.repo_manager, "extract_patch", return_value=""),
+            patch("subprocess.run", return_value=MagicMock(returncode=0)),
+            patch("benchmark.predict.agents.bench_agent_wrapper.Path") as mock_path,
+        ):
+            mock_path.return_value = output_dir
+            # Act
+            _, usage = wrapper.generate_patch(
+                instance=instance,
+                repo_dir=repo_dir,
+                session_id="repeat-02-bench-agent-test-123",
+                mode="react",
+            )
+
+        # Assert — the record states which attempt produced it
+        assert usage["identity"] == {
+            "run_name": "repeat_02",
+            "repetition": 2,
+            "mode": "react",
+            "agent_type": "bench-agent",
+            "instance_id": "test-123",
+            "session_id": "repeat-02-bench-agent-test-123",
+        }
+        written = json.loads(
+            (output_dir / "bench-agent_usage.json").read_text(encoding="utf-8")
+        )
+        assert written["identity"] == usage["identity"]
+
 
 # ---------------------------------------------------------------------------
 # Docker runner dispatch tests
