@@ -328,8 +328,10 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
         with make_bench_agent_wrapper() as wrapper:
             result = wrapper._load_usage_data(missing_file)
 
-            # Assert
-            assert result["total"]["tokens_total"] == -1
+            # Assert — no cost report means an unknown cost, not -1 or 0.
+            assert result["total"]["tokens_total"] == 0
+            assert result["total"]["cost_total"] is None
+            assert result["total"]["cost_complete"] is False
 
     def test_04_unit_03_bench_agent_wrapper_04_usage_03_invalid_json(
         self, tmp_path: Path
@@ -343,7 +345,42 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
             result = wrapper._load_usage_data(costs_file)
 
             # Assert
-            assert result["total"]["tokens_total"] == -1
+            assert result["total"]["tokens_total"] == 0
+            assert result["total"]["cost_total"] is None
+
+    def test_04_unit_03_bench_agent_wrapper_04_usage_03b_missing_costs_keeps_tokens(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Arrange — the session died before finalizing costs.json, but the
+        # incrementally appended call logs are on disk.
+        monkeypatch.setenv("SESSION_ID", "sess-crashed")
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        (artifacts_dir / "token_usage_calls.jsonl").write_text(
+            json.dumps({"usage": {"input": 700, "output": 300, "cached": 100}}) + "\n"
+        )
+        (artifacts_dir / "histrel_calls.jsonl").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-1",
+                    "usage": {"input": 200, "output": 50, "cached": 0},
+                    "cost_usd": 0.02,
+                }
+            )
+            + "\n"
+        )
+
+        # Act
+        with make_bench_agent_wrapper() as wrapper:
+            result = wrapper._load_usage_data(artifacts_dir / "costs.json")
+
+            # Assert — token usage is preserved; the cost is unknown, not 0
+            # and not -1.
+            assert result["total"]["tokens_input"] == 900
+            assert result["total"]["tokens_total"] == 1250
+            assert result["total"]["cost_total"] is None
+            assert result["total"]["cost_complete"] is False
+            assert result["run-1"]["cost_total"] == 0.02
 
     def test_04_unit_03_bench_agent_wrapper_04_usage_04_no_calls_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -404,8 +441,8 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
         calls_file.write_text(
             json.dumps({"usage": {"input": 1000, "output": 500, "cached": 200}}) + "\n"
         )
-        mt_file = artifact_dir / "histrel_calls.jsonl"
-        mt_file.write_text(
+        histrel_file = artifact_dir / "histrel_calls.jsonl"
+        histrel_file.write_text(
             json.dumps(
                 {
                     "run_id": "test-session-mt-123-analyze-query",
@@ -504,8 +541,8 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
         calls_file.write_text(
             json.dumps({"usage": {"input": 1000, "output": 500}}) + "\n"
         )
-        mt_file = artifact_dir / "histrel_calls.jsonl"
-        mt_file.write_text(
+        histrel_file = artifact_dir / "histrel_calls.jsonl"
+        histrel_file.write_text(
             json.dumps(
                 {
                     "run_id": "sess-partial-mt-1-analyze-query",
@@ -553,8 +590,8 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
         calls_file.write_text(
             json.dumps({"usage": {"input": 3000, "output": 800, "cached": 100}}) + "\n"
         )
-        mt_file = artifact_dir / "histrel_calls.jsonl"
-        mt_file.write_text(
+        histrel_file = artifact_dir / "histrel_calls.jsonl"
+        histrel_file.write_text(
             json.dumps(
                 {
                     "run_id": "test-session-histrel-b-1789374251-analyze-query",
@@ -615,8 +652,8 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
         calls_file.write_text(
             json.dumps({"usage": {"input": 1000, "output": 500, "cached": 200}}) + "\n"
         )
-        mt_file = artifact_dir / "histrel_calls.jsonl"
-        mt_file.write_text(
+        histrel_file = artifact_dir / "histrel_calls.jsonl"
+        histrel_file.write_text(
             json.dumps(
                 {
                     "run_id": "test-session-none-cost-1-analyze-query",
@@ -708,8 +745,8 @@ class Test04Unit03BenchAgentWrapper04LoadUsageData:
             )
             + "\n"
         )
-        mt_file = artifact_dir / "histrel_calls.jsonl"
-        mt_file.write_text(
+        histrel_file = artifact_dir / "histrel_calls.jsonl"
+        histrel_file.write_text(
             json.dumps(
                 {
                     "run_id": "test-session-run-totals-1-analyze-query",

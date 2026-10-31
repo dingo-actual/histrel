@@ -16,6 +16,7 @@ messages to the journal.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -53,6 +54,18 @@ if TYPE_CHECKING:
 log = logger.bind(component="bench_agent.runtime")
 
 
+def _artifacts_dir(runtime: Runtime) -> Path:
+    """Return the session artifact directory.
+
+    Args:
+        runtime (Runtime): The runtime being constructed.
+
+    Returns:
+        (Path) Artifact directory for this session.
+    """
+    return runtime.output_dir / runtime.config.session_id / "artifacts"
+
+
 def wire_session_context(runtime: Runtime) -> None:
     """Create the session context, message factory, and journal.
 
@@ -68,7 +81,7 @@ def wire_session_context(runtime: Runtime) -> None:
         ),
     )
     runtime.message_factory = MessageFactory(SessionId(runtime.config.session_id))
-    artifacts_dir = runtime.output_dir / runtime.config.session_id / "artifacts"
+    artifacts_dir = _artifacts_dir(runtime)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     runtime.journal = MessageJournal(artifacts_dir / "messages.jsonl")
 
@@ -79,7 +92,9 @@ def wire_subsystems(runtime: Runtime) -> None:
     Args:
         runtime (Runtime): The runtime being constructed.
     """
-    runtime.token_ledger = TokenLedger()
+    runtime.token_ledger = TokenLedger(
+        usage_log_path=_artifacts_dir(runtime) / "token_usage_calls.jsonl"
+    )
     runtime.timings = Timings()
     runtime.tool_metrics = ToolMetrics()
     runtime.duplicate_guard = DuplicateCallGuard(

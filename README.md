@@ -168,9 +168,10 @@ python -m benchmark.predict.cli \
 `--mode` (default `stateless`) is passed through to every agent container as
 `python -m histrel --mode ...`.
 
-The harness builds one image per instance, mounts the instance data read-only
-and the output directory read-write, runs the agent inside the container, and
-extracts the resulting patch. Runs are resumable: existing predictions are
+The harness builds one image per instance, mounts an allowlisted task record
+read-only and the output directory read-write, runs the agent inside the
+container, and extracts the resulting patch. Reference patches and evaluation
+metadata never leave the host. Runs are resumable: existing predictions are
 skipped. `--dry-run` writes a `PLAN.md` summary of the resolved run instead of
 building or executing anything.
 
@@ -209,8 +210,9 @@ The benchmark writes to `<output_dir>/<run_name>/`:
 | --- | --- |
 | `bench_agent_predictions.jsonl` | One prediction record per instance. With `--repeat`, every prediction from every repetition, tagged with a `repetition` number. |
 | `bench_agent_usage.jsonl` | Token usage per instance. |
-| `bench_agent_usage_aggregate.json` | Written only with `--repeat`: per-instance and overall sum, mean, and median of each usage metric. |
+| `bench_agent_usage_aggregate.json` | Written only with `--repeat`: per-instance and overall sample count, sum, mean, and median of each usage metric |
 | `artifacts/<instance>/` | Per-instance session artifacts. |
+| `instance_mounts/<instance>/instance.json` | Task record mounted read-only at `/workspace/instance`: instance id, repo, base commit, problem statement, hints, and test-runner flag only. |
 | `repeat_NN/` | Written only with `--repeat`: one full run directory per repetition, with the same files. |
 
 ## Development

@@ -155,8 +155,14 @@ class Test04Unit02Cost02Report:
 
         # Assert — routine calls cost into model_cost and appear in
         # the per-call breakdown with their own call kind.
-        assert report.total_cost > 0
-        assert report.model_cost > 0
+        total_cost = report.total_cost
+        model_cost = report.model_cost
+        compaction_cost = report.compaction_cost
+        assert total_cost is not None
+        assert model_cost is not None
+        assert compaction_cost is not None
+        assert total_cost > 0
+        assert model_cost > 0
         assert len(report.call_costs) == 3
         routine_call = [c for c in report.call_costs if c.call_kind == "routine"]
         assert len(routine_call) == 1
@@ -164,10 +170,8 @@ class Test04Unit02Cost02Report:
         routine_cost = (3 * 1000 + 8 * 100) / 1e6
         assert abs(routine_call[0].cost_usd - routine_cost) < 1e-9
         model_cost_expected = (3 * 30000 + 8 * 13000) / 1e6 + routine_cost
-        assert abs(report.model_cost - model_cost_expected) < 1e-9
-        assert (
-            abs(report.total_cost - report.model_cost - report.compaction_cost) < 1e-9
-        )
+        assert abs(model_cost - model_cost_expected) < 1e-9
+        assert abs(total_cost - model_cost - compaction_cost) < 1e-9
 
     def test_04_unit_02_cost_02_report_02_separates_compaction_cost(self) -> None:
         # Arrange
@@ -182,9 +186,15 @@ class Test04Unit02Cost02Report:
         report = calculator.compute_report(ledger)
 
         # Assert
-        assert report.model_cost > 0
-        assert report.compaction_cost > 0
-        assert report.total_cost == report.model_cost + report.compaction_cost
+        total_cost = report.total_cost
+        model_cost = report.model_cost
+        compaction_cost = report.compaction_cost
+        assert total_cost is not None
+        assert model_cost is not None
+        assert compaction_cost is not None
+        assert model_cost > 0
+        assert compaction_cost > 0
+        assert total_cost == model_cost + compaction_cost
 
     def test_04_unit_02_cost_02_report_03_no_pricing_marks_incomplete(self) -> None:
         # Arrange
@@ -195,9 +205,11 @@ class Test04Unit02Cost02Report:
         # Act
         report = calculator.compute_report(ledger)
 
-        # Assert
+        # Assert — missing pricing makes the cost unknown, not free.
         assert report.is_complete is False
-        assert report.total_cost == 0.0
+        assert report.total_cost is None
+        assert report.model_cost is None
+        assert report.compaction_cost is None
 
     def test_04_unit_02_cost_02_report_04_complete_when_pricing_available(
         self,

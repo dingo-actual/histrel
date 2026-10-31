@@ -401,16 +401,19 @@ class CostReport(BaseModel):
     """Aggregated cost report.
 
     Instance Attributes:
-        total_cost (float): Total cost across all calls.
-        model_cost (float): Cost from model and routine calls only.
-        compaction_cost (float): Cost from compaction calls only.
+        total_cost (float | None): Total cost across all calls, or None
+            when cost accounting is unavailable.
+        model_cost (float | None): Cost from model and routine calls only,
+            or None when unavailable.
+        compaction_cost (float | None): Cost from compaction calls only,
+            or None when unavailable.
         call_costs (list[CallCost]): Per-call cost breakdowns.
         is_complete (bool): Whether cost accounting is complete.
     """
 
-    total_cost: float = 0.0
-    model_cost: float = 0.0
-    compaction_cost: float = 0.0
+    total_cost: float | None = None
+    model_cost: float | None = None
+    compaction_cost: float | None = None
     call_costs: list[CallCost] = []
     is_complete: bool = True
 
@@ -501,13 +504,14 @@ class CostCalculator:
             ledger (TokenLedger): Token ledger with recorded usage.
 
         Returns:
-            (CostReport) Aggregated cost report.
+            (CostReport) Aggregated cost report. Costs are None when
+            pricing is unavailable: unknown cost must not read as free.
         """
         if self._pricing is None:
             return CostReport(
-                total_cost=0.0,
-                model_cost=0.0,
-                compaction_cost=0.0,
+                total_cost=None,
+                model_cost=None,
+                compaction_cost=None,
                 call_costs=[],
                 is_complete=False,
             )

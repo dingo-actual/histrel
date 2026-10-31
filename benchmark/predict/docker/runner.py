@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import shutil
 import time
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from benchmark.common.docker_utils import (
 )
 from benchmark.common.io import ensure_dir
 from benchmark.predict.config import PredictorConfig
+from benchmark.predict.docker.instance_record import build_agent_instance
 from benchmark.predict.types import AGENT_TYPE, UsageData
 from histrel.context.cost_calculator import PRICING_CACHE_ENV
 
@@ -72,16 +74,25 @@ class DockerRunner:
         instance_id = instance.get("instance_id", "unknown")
         patch_path = out_dir / f"{AGENT_TYPE}_{instance_id}.jsonl"
 
-        # Persist instance JSON for the container (mount parent directory)
-        tmp_instances_dir = out_dir / "tmp_instances"
-        ensure_dir(tmp_instances_dir)
-        instance_file = tmp_instances_dir / "instance.json"
-        instance_file.write_text(json.dumps(instance), encoding="utf-8")
+        # Agent-facing instance record: allowlisted task fields only, written
+        # outside the rw-mounted output dir. The container sees the same host
+        # tree at /workspace/output, so a full dataset record placed there
+        # would hand the agent the reference patch and eval metadata.
+        instance_mount_dir = out_dir.parent / "instance_mounts" / instance_id
+        ensure_dir(instance_mount_dir)
+        (instance_mount_dir / "instance.json").write_text(
+            json.dumps(build_agent_instance(instance)), encoding="utf-8"
+        )
+
+        # Earlier runs kept the full record here; a resumed run must not
+        # expose it through the output mount.
+        with contextlib.suppress(OSError):
+            shutil.rmtree(out_dir / "tmp_instances")
 
         # Volumes mapping
         volumes = {
             str(out_dir.resolve()): {"bind": "/workspace/output", "mode": "rw"},
-            str(tmp_instances_dir.resolve()): {
+            str(instance_mount_dir.resolve()): {
                 "bind": "/workspace/instance",
                 "mode": "ro",
             },

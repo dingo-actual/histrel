@@ -62,3 +62,9 @@ class Test04Unit04Runtime04ModelError:
         # Assert
         assert outcome.status == SessionStatus.INFRASTRUCTURE_ERROR
         assert "API unreachable" in outcome.reason
+        # A handled model error still finalizes, so the failed attempt's
+        # artifacts and incurred usage are preserved.
+        artifacts_dir = tmp_path / "output" / config.session_id / "artifacts"
+        assert (artifacts_dir / "outcome.json").exists()
+        assert (artifacts_dir / "costs.json").exists()
+        assert (artifacts_dir / "result_manifest.json").exists()

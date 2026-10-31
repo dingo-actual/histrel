@@ -9,10 +9,18 @@ by the provider in streaming response chunks.
     Important Classes:
         LedgerEntry: A single token usage record.
         TokenLedger: Cumulative token usage tracker.
+
+    Important Functions:
+        entry_payload: Serialize a ledger entry for artifact output.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from typing import Any
+
+from loguru import logger
 from pydantic import BaseModel
 
 from histrel.model.types import Usage
@@ -35,6 +43,23 @@ class LedgerEntry(BaseModel):
     call_kind: str = "model"
 
 
+def entry_payload(entry: LedgerEntry) -> dict[str, Any]:
+    """Serialize a ledger entry for a JSONL usage log.
+
+    Args:
+        entry (LedgerEntry): The entry to serialize.
+
+    Returns:
+        (dict[str, Any]) JSON-ready payload for one usage record.
+    """
+    return {
+        "message_index": entry.message_index,
+        "provider_request_id": entry.provider_request_id,
+        "call_kind": entry.call_kind,
+        "usage": entry.usage.model_dump(),
+    }
+
+
 class TokenLedger:
     """Cumulative token usage tracker.
 
@@ -48,10 +73,19 @@ class TokenLedger:
         _total_reasoning (int): Cumulative reasoning tokens.
         _total_cached (int): Cumulative cached tokens.
         _last_input (int): Most recent input token count.
+        _usage_log_path (Path | None): Append-only log written on every
+            recorded entry, so usage survives a session that never
+            finalizes.
     """
 
-    def __init__(self) -> None:
-        """Initialize an empty token ledger."""
+    def __init__(self, usage_log_path: Path | None = None) -> None:
+        """Initialize an empty token ledger.
+
+        Args:
+            usage_log_path (Path | None): Append-only JSONL log that
+                receives each entry as it is recorded.
+        """
+        self._usage_log_path = usage_log_path
         self._entries: list[LedgerEntry] = []
         self._total_input: int = 0
         self._total_output: int = 0
@@ -88,6 +122,29 @@ class TokenLedger:
         self._total_cached += usage.cached
         if call_kind == "model":
             self._last_input = usage.input
+        self._append(entry)
+
+    def _append(self, entry: LedgerEntry) -> None:
+        """Append one entry to the usage log, if a log is configured.
+
+        Args:
+            entry (LedgerEntry): The entry to persist.
+        """
+        if self._usage_log_path is None:
+            return
+        try:
+            self._usage_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._usage_log_path.open("a", encoding="utf-8") as log_file:
+                log_file.write(json.dumps(entry_payload(entry)) + "\n")
+        except OSError as exc:
+            logger.bind(
+                component="histrel.context.token_ledger",
+                event="usage.persist_failed",
+            ).warning(
+                "Failed to append usage to the usage log",
+                path=str(self._usage_log_path),
+                error=str(exc),
+            )
 
     @property
     def total_input(self) -> int:

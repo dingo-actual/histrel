@@ -22,7 +22,8 @@ class UsageRecordData(TypedDict, total=False):
         tokens_cache_read: Number of cache read tokens
         tokens_cache_write: Number of cache write tokens
         tokens_total: Total token count
-        cost_total: Total cost in USD (0.0 placeholder when unavailable)
+        cost_total: Total cost in USD, or None when the cost is unknown
+        cost_complete: Whether the cost accounting for the record is complete
         maximum_context: Maximum context size encountered
     """
 
@@ -32,7 +33,8 @@ class UsageRecordData(TypedDict, total=False):
     tokens_cache_read: int
     tokens_cache_write: int
     tokens_total: int
-    cost_total: float
+    cost_total: float | None
+    cost_complete: bool
     maximum_context: int
 
 

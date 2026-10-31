@@ -8,8 +8,11 @@ into aggregate files at ``<output_dir>/<run_name>/``:
 
 - ``bench_agent_predictions.jsonl``: every prediction from every repetition,
   tagged with its 1-based ``repetition`` number.
-- ``bench_agent_usage_aggregate.json``: per-instance and overall sum, mean,
-  and median of each numeric usage metric.
+- ``bench_agent_usage_aggregate.json``: per-instance and overall sample
+  count, sum, mean, and median of each numeric usage metric, plus the
+  number of records whose cost is unknown. Records with an unknown cost
+  (missing, negative, or marked incomplete) are not cost observations, so
+  they never pull the reported cost average toward zero.
 
     Important Functions:
         repeat_dir_name(index: int) -> str
@@ -27,6 +30,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from benchmark.common.io import read_jsonl, write_json, write_jsonl
+from benchmark.predict.usage_helpers import known_cost, known_measurement
 from loguru import logger
 
 #: Predictions file name, used inside each repetition and for the aggregate.
@@ -47,9 +51,6 @@ _STAT_FIELDS = (
     "cost_total",
     "maximum_context",
 )
-
-#: Statistic names reported for each aggregated metric.
-_STAT_NAMES = ("sum", "mean", "median")
 
 
 class AggregatePaths(NamedTuple):
@@ -119,36 +120,59 @@ def collect_predictions(repeat_dirs: Sequence[Path]) -> list[dict[str, Any]]:
     ]
 
 
-def _metric_stats(values: Sequence[float]) -> dict[str, float]:
-    """Return sum, mean, and median of a metric sample.
+def _metric_stats(values: Sequence[float]) -> dict[str, float | int]:
+    """Return the sample size, sum, mean, and median of a metric.
 
     Args:
         values (Sequence[float]): Non-empty sample of metric values.
 
     Returns:
-        (dict[str, float]) Statistics keyed by stat name, rounded for
+        (dict[str, float | int]) Statistics keyed by stat name, rounded for
         readability.
     """
-    stats = {
-        "sum": math.fsum(values),
-        "mean": statistics.fmean(values),
-        "median": statistics.median(values),
-    }
-    return {name: round(stats[name], 4) for name in _STAT_NAMES}
+    stats: dict[str, float | int] = {"count": len(values)}
+    stats["sum"] = round(math.fsum(values), 4)
+    stats["mean"] = round(statistics.fmean(values), 4)
+    stats["median"] = round(statistics.median(values), 4)
+    return stats
 
 
-def _summarize(samples: dict[str, list[float]], count: int) -> dict[str, Any]:
+def _cost_is_unknown(record: dict[str, Any]) -> bool:
+    """Return whether a usage record's cost is not an observation.
+
+    A cost is unknown when it is absent, negative (the legacy -1 sentinel),
+    or explicitly marked incomplete by the runner.
+
+    Args:
+        record (dict[str, Any]): One usage record.
+
+    Returns:
+        (bool) True when the record must not contribute to cost statistics.
+    """
+    return (
+        record.get("cost_complete") is False
+        or known_cost(record.get("cost_total")) is None
+    )
+
+
+def _summarize(
+    samples: dict[str, list[float]], count: int, unknown_costs: int
+) -> dict[str, Any]:
     """Build the sample statistics block for one scope.
 
     Args:
         samples (dict[str, list[float]]): Metric name to sampled values.
         count (int): Number of usage records summarized.
+        unknown_costs (int): Number of records with an unknown cost.
 
     Returns:
-        (dict[str, Any]) Record count and per-metric statistics.
+        (dict[str, Any]) Record count, cost completeness flag, unknown-cost
+        count, and per-metric statistics.
     """
     return {
         "count": count,
+        "cost_complete": unknown_costs == 0,
+        "unknown_costs": unknown_costs,
         "metrics": {
             field: _metric_stats(values) for field, values in samples.items() if values
         },
@@ -167,8 +191,10 @@ def collect_usage(repeat_dirs: Sequence[Path]) -> dict[str, Any]:
     """
     per_instance: dict[str, dict[str, list[float]]] = {}
     per_instance_count: dict[str, int] = {}
+    per_instance_unknown_costs: dict[str, int] = {}
     overall: dict[str, list[float]] = {field: [] for field in _STAT_FIELDS}
     overall_count = 0
+    overall_unknown_costs = 0
 
     for directory in repeat_dirs:
         for record in _read_records(directory, USAGE_FILE_NAME):
@@ -180,19 +206,32 @@ def collect_usage(repeat_dirs: Sequence[Path]) -> dict[str, Any]:
             )
             per_instance_count[instance_id] = per_instance_count.get(instance_id, 0) + 1
             overall_count += 1
+            cost_unknown = _cost_is_unknown(record)
+            if cost_unknown:
+                overall_unknown_costs += 1
+                per_instance_unknown_costs[instance_id] = (
+                    per_instance_unknown_costs.get(instance_id, 0) + 1
+                )
             for field in _STAT_FIELDS:
-                value = record.get(field)
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    samples[field].append(float(value))
-                    overall[field].append(float(value))
+                if field == "cost_total" and cost_unknown:
+                    continue
+                measurement = known_measurement(record.get(field))
+                if measurement is None:
+                    continue
+                samples[field].append(float(measurement))
+                overall[field].append(float(measurement))
 
     return {
         "repetitions": len(repeat_dirs),
         "instances": {
-            instance_id: _summarize(samples, per_instance_count[instance_id])
+            instance_id: _summarize(
+                samples,
+                per_instance_count[instance_id],
+                per_instance_unknown_costs.get(instance_id, 0),
+            )
             for instance_id, samples in per_instance.items()
         },
-        "overall": _summarize(overall, overall_count),
+        "overall": _summarize(overall, overall_count, overall_unknown_costs),
     }
 
 

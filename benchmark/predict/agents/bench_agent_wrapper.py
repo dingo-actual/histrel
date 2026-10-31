@@ -36,6 +36,7 @@ from benchmark.predict.agents.pyc_preflight import (
 from benchmark.predict.agents.repo import GitRepoManager
 from benchmark.predict.agents.templates import MESSAGE_TEMPLATE, render_template
 from benchmark.predict.config import Mode
+from benchmark.predict.usage_helpers import known_cost, known_measurement
 from benchmark.predict.types import AGENT_TYPE
 import histrel
 from histrel.logging.agent_logger import (
@@ -67,6 +68,182 @@ def _agent_config_template_path() -> Path:
 # copy shipped inside the installed ``histrel`` package (see the wheel's
 # force-include in pyproject.toml).
 _AGENT_CONFIG_TEMPLATE_PATH = _agent_config_template_path()
+
+
+class _ModelCallTotals:
+    """Token totals across the bench-agent's LLM calls.
+
+    Instance Attributes:
+        input (int): Cumulative input tokens.
+        output (int): Cumulative output tokens.
+        cached (int): Cumulative cached tokens.
+        max_context (int): Largest single-call input token count.
+    """
+
+    def __init__(self) -> None:
+        """Initialize zeroed totals."""
+        self.input = 0
+        self.output = 0
+        self.cached = 0
+        self.max_context = 0
+
+
+class _HistrelCallTotals:
+    """Token totals across Histrel tool calls.
+
+    Instance Attributes:
+        entries (dict[str, dict[str, int | float | str | bool | None]]):
+            Per-run usage records keyed by run ID.
+        input (int): Cumulative input tokens.
+        output (int): Cumulative output tokens.
+        cached (int): Cumulative cached tokens.
+        total (int): Cumulative reported token totals.
+        max_context (int): Largest per-run maximum context.
+    """
+
+    def __init__(self) -> None:
+        """Initialize zeroed totals."""
+        self.entries: dict[str, dict[str, int | float | str | bool | None]] = {}
+        self.input = 0
+        self.output = 0
+        self.cached = 0
+        self.total = 0
+        self.max_context = 0
+
+
+def _token_count(value: object) -> int:
+    """Return a non-negative token count from a usage field.
+
+    Args:
+        value (object): Candidate token count.
+
+    Returns:
+        (int) The token count, or 0 when the field is unusable.
+    """
+    measurement = known_measurement(value)
+    return 0 if measurement is None else int(measurement)
+
+
+def _read_jsonl_records(path: Path) -> list[dict]:
+    """Read JSONL records, skipping blank and malformed lines.
+
+    Args:
+        path (Path): JSONL file to read.
+
+    Returns:
+        (list[dict]) Parsed records; empty when the file is unreadable.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    records: list[dict] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def _load_costs(
+    usage_file: Path,
+) -> tuple[float | None, float | None, float | None, bool]:
+    """Load the final cost totals from the agent's costs.json.
+
+    Args:
+        usage_file (Path): Path to costs.json file.
+
+    Returns:
+        (tuple[float | None, float | None, float | None, bool]) Total,
+            model, and compaction cost, plus whether cost accounting is
+            complete. Every cost is None when costs.json is missing or
+            unreadable: an unknown cost must not read as free.
+    """
+    try:
+        data = json.loads(usage_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, None, None, False
+    if not isinstance(data, dict):
+        return None, None, None, False
+    return (
+        known_cost(data.get("total_cost")),
+        known_cost(data.get("model_cost")),
+        known_cost(data.get("compaction_cost")),
+        data.get("is_complete") is True,
+    )
+
+
+def _sum_model_calls(calls_file: Path) -> _ModelCallTotals:
+    """Sum token usage across the bench-agent's LLM calls.
+
+    Args:
+        calls_file (Path): Path to token_usage_calls.jsonl.
+
+    Returns:
+        (_ModelCallTotals) Token totals and largest call context.
+    """
+    totals = _ModelCallTotals()
+    for record in _read_jsonl_records(calls_file):
+        usage = record.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        call_input = _token_count(usage.get("input"))
+        totals.input += call_input
+        totals.output += _token_count(usage.get("output"))
+        totals.cached += _token_count(usage.get("cached"))
+        totals.max_context = max(totals.max_context, call_input)
+    return totals
+
+
+def _sum_histrel_calls(histrel_file: Path) -> _HistrelCallTotals:
+    """Sum token usage across Histrel tool calls.
+
+    Args:
+        histrel_file (Path): Path to histrel_calls.jsonl.
+
+    Returns:
+        (_HistrelCallTotals) Per-run records and token totals.
+    """
+    totals = _HistrelCallTotals()
+    session_id = os.environ.get("SESSION_ID", "")
+    for record in _read_jsonl_records(histrel_file):
+        usage = record.get("usage")
+        if not isinstance(usage, dict):
+            usage = {}
+        call_input = _token_count(usage.get("input"))
+        call_output = _token_count(usage.get("output"))
+        call_cached = _token_count(usage.get("cached"))
+        call_total = (
+            call_input + call_output
+            if usage.get("total") is None
+            else _token_count(usage.get("total"))
+        )
+        call_max_context = _token_count(usage.get("maximum_context"))
+        call_cost = known_cost(record.get("cost_usd"))
+        run_id = str(record.get("run_id", ""))
+
+        totals.entries[run_id] = {
+            "session_id": session_id,
+            "tokens_input": call_input,
+            "tokens_output": call_output,
+            "tokens_cache_read": call_cached,
+            "tokens_cache_write": 0,
+            "tokens_total": call_total,
+            "cost_total": call_cost,
+            "cost_complete": call_cost is not None,
+            "maximum_context": call_max_context,
+        }
+        totals.input += call_input
+        totals.output += call_output
+        totals.cached += call_cached
+        totals.total += call_total
+        totals.max_context = max(totals.max_context, call_max_context)
+    return totals
 
 
 class BenchAgentWrapper:
@@ -197,12 +374,13 @@ class BenchAgentWrapper:
         return config_path
 
     def _load_usage_data(self, usage_file: Path) -> dict:
-        """Load usage data from the agent's costs.json file.
+        """Load usage data from the agent's artifact directory.
 
-        The benchmark agent writes token usage to costs.json,
-        token_usage_calls.jsonl, and histrel_calls.jsonl in its artifact
-        directory. This method reads all three and converts them to the
-        harness-expected usage.json format.
+        Token counts are read from token_usage_calls.jsonl and
+        histrel_calls.jsonl, which are appended as each call completes, so
+        they survive a session that never wrote costs.json. Costs are read
+        from costs.json only; an absent or incomplete cost report is
+        reported as an unknown cost, never as zero.
 
         Per-tool entries from histrel_calls.jsonl are keyed by their
         run_id at the top level of the returned dict, so tool-specific
@@ -223,142 +401,52 @@ class BenchAgentWrapper:
                 matching the harness UsageData format, plus per-tool
                 entries keyed by run_id.
         """
-        error_data = {
+        model = _sum_model_calls(usage_file.parent / "token_usage_calls.jsonl")
+        histrel = _sum_histrel_calls(usage_file.parent / "histrel_calls.jsonl")
+        total_cost, model_cost, compaction_cost, costs_complete = _load_costs(
+            usage_file
+        )
+        # "none" cost covers bench-agent LLM calls (model, compaction, and
+        # routine) only; Histrel tool call costs are reported per-tool and
+        # in the "total" record.
+        none_cost = (
+            None
+            if model_cost is None or compaction_cost is None
+            else model_cost + compaction_cost
+        )
+
+        session_id = os.environ.get("SESSION_ID", "")
+        # Sum per-record totals: Histrel's tokens_total can exceed
+        # input + output for total-only accounted calls, which the
+        # session total must not drop.
+        total_tokens = (model.input + model.output) + histrel.total
+        result: dict[str, dict[str, int | float | str | bool | None]] = {
             "total": {
-                "session_id": "error",
-                "tokens_input": -1,
-                "tokens_output": -1,
-                "tokens_cache_read": -1,
-                "tokens_cache_write": -1,
-                "tokens_total": -1,
-                "cost_total": -1.0,
-                "maximum_context": -1,
-            }
+                "session_id": session_id,
+                "tokens_input": model.input + histrel.input,
+                "tokens_output": model.output + histrel.output,
+                "tokens_cache_read": model.cached + histrel.cached,
+                "tokens_cache_write": 0,
+                "tokens_total": total_tokens,
+                "cost_total": total_cost,
+                "cost_complete": costs_complete,
+                "maximum_context": max(model.max_context, histrel.max_context),
+            },
+            # "none" reflects bench-agent-only usage (excludes Histrel)
+            "none": {
+                "session_id": session_id,
+                "tokens_input": model.input,
+                "tokens_output": model.output,
+                "tokens_cache_read": model.cached,
+                "tokens_cache_write": 0,
+                "tokens_total": model.input + model.output,
+                "cost_total": none_cost,
+                "cost_complete": costs_complete,
+                "maximum_context": model.max_context,
+            },
         }
-
-        if not usage_file.exists():
-            return error_data
-
-        try:
-            data = json.loads(usage_file.read_text(encoding="utf-8"))
-            if not isinstance(data, dict):
-                return error_data
-
-            total_cost = float(data.get("total_cost", 0.0))
-            # "none" cost covers bench-agent LLM calls (model, compaction,
-            # and routine) only; Histrel tool call costs are reported
-            # per-tool and in the "total" record.
-            model_cost = float(data.get("model_cost", 0.0))
-            compaction_cost = float(data.get("compaction_cost", 0.0))
-            none_cost = model_cost + compaction_cost
-
-            # Read token_usage_calls.jsonl for bench-agent LLM call token
-            # counts (model, compaction, and routine kinds)
-            calls_file = usage_file.parent / "token_usage_calls.jsonl"
-            model_input = 0
-            model_output = 0
-            model_cached = 0
-            model_max_context = 0
-
-            if calls_file.exists():
-                for line in calls_file.read_text(encoding="utf-8").splitlines():
-                    if not line.strip():
-                        continue
-                    try:
-                        call = json.loads(line)
-                        usage = call.get("usage", {})
-                        call_input = int(usage.get("input", 0))
-                        call_output = int(usage.get("output", 0))
-                        model_input += call_input
-                        model_output += call_output
-                        model_cached += int(usage.get("cached", 0))
-                        model_max_context = max(model_max_context, call_input)
-                    except (json.JSONDecodeError, TypeError, ValueError):
-                        continue
-
-            # Read histrel_calls.jsonl for Histrel tool call usage
-            mt_file = usage_file.parent / "histrel_calls.jsonl"
-            histrel_entries: dict[str, dict[str, int | float | str]] = {}
-            mt_input = 0
-            mt_output = 0
-            mt_cached = 0
-            mt_total = 0
-            mt_max_context = 0
-
-            if mt_file.exists():
-                for line in mt_file.read_text(encoding="utf-8").splitlines():
-                    if not line.strip():
-                        continue
-                    try:
-                        entry = json.loads(line)
-                        run_id = entry.get("run_id", "")
-                        mt_usage = entry.get("usage", {})
-                        call_input = int(mt_usage.get("input", 0))
-                        call_output = int(mt_usage.get("output", 0))
-                        call_cached = int(mt_usage.get("cached", 0))
-                        call_total = int(
-                            mt_usage.get("total", call_input + call_output)
-                        )
-                        call_max_context = int(mt_usage.get("maximum_context", 0))
-                        call_cost = float(entry.get("cost_usd", 0.0))
-                        session_id = os.environ.get("SESSION_ID", "")
-
-                        histrel_entries[run_id] = {
-                            "session_id": session_id,
-                            "tokens_input": call_input,
-                            "tokens_output": call_output,
-                            "tokens_cache_read": call_cached,
-                            "tokens_cache_write": 0,
-                            "tokens_total": call_total,
-                            "cost_total": call_cost,
-                            "maximum_context": call_max_context,
-                        }
-
-                        mt_input += call_input
-                        mt_output += call_output
-                        mt_cached += call_cached
-                        mt_total += call_total
-                        mt_max_context = max(mt_max_context, call_max_context)
-                    except (json.JSONDecodeError, TypeError, ValueError):
-                        continue
-
-            total_input = model_input + mt_input
-            total_output = model_output + mt_output
-            total_cached = model_cached + mt_cached
-            max_context = max(model_max_context, mt_max_context)
-            # Sum per-record totals: Histrel's tokens_total can exceed
-            # input + output for total-only accounted calls, which the
-            # session total must not drop.
-            total_tokens = (model_input + model_output) + mt_total
-            session_id = os.environ.get("SESSION_ID", "")
-
-            result: dict[str, dict[str, int | float | str]] = {
-                "total": {
-                    "session_id": session_id,
-                    "tokens_input": total_input,
-                    "tokens_output": total_output,
-                    "tokens_cache_read": total_cached,
-                    "tokens_cache_write": 0,
-                    "tokens_total": total_tokens,
-                    "cost_total": total_cost,
-                    "maximum_context": max_context,
-                },
-                # "none" reflects bench-agent-only usage (excludes Histrel)
-                "none": {
-                    "session_id": session_id,
-                    "tokens_input": model_input,
-                    "tokens_output": model_output,
-                    "tokens_cache_read": model_cached,
-                    "tokens_cache_write": 0,
-                    "tokens_total": model_input + model_output,
-                    "cost_total": none_cost,
-                    "maximum_context": model_max_context,
-                },
-            }
-            result.update(histrel_entries)
-            return result
-        except (json.JSONDecodeError, OSError, TypeError):
-            return error_data
+        result.update(histrel.entries)
+        return result
 
     def generate_patch(
         self,

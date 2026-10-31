@@ -7,6 +7,7 @@ Naming follows the main suite taxonomy.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -33,7 +34,7 @@ def _prediction_row(instance_id: str, patch: str) -> dict[str, str]:
     }
 
 
-def _usage_row(instance_id: str, tokens_total: int) -> dict[str, str | int | float]:
+def _usage_row(instance_id: str, tokens_total: int) -> dict[str, Any]:
     """Build a usage record for a repetition."""
     return {
         "instance_id": instance_id,
@@ -53,7 +54,7 @@ def _write_repetition(
     index: int,
     *,
     predictions: list[dict[str, str]] | None = None,
-    usage: list[dict[str, str | int | float]] | None = None,
+    usage: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Write one repetition directory with its artifacts."""
     directory = run_root / repeat_dir_name(index)
@@ -169,10 +170,48 @@ class Test04Unit01Repeat02AggregateUsage:
         assert overall_tokens["mean"] == pytest.approx(10)
         assert summary["instances"]["inst-2"]["count"] == 2
         assert summary["instances"]["inst-2"]["metrics"]["tokens_total"] == {
+            "count": 2,
             "sum": 10.0,
             "mean": 5.0,
             "median": 5.0,
         }
+
+    def test_04_unit_01_repeat_02_aggregate_usage_03_unknown_costs_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — one attempt has a known cost, one failed with an unknown
+        # cost marked by the runner, and one carries the legacy -1 sentinel.
+        known = {**_usage_row("inst-1", 10), "cost_total": 0.5, "cost_complete": True}
+        unknown = {
+            **_usage_row("inst-1", 30),
+            "cost_total": None,
+            "cost_complete": False,
+        }
+        legacy = {**_usage_row("inst-1", 50), "cost_total": -1.0}
+        dirs = [
+            _write_repetition(tmp_path, 1, usage=[known]),
+            _write_repetition(tmp_path, 2, usage=[unknown]),
+            _write_repetition(tmp_path, 3, usage=[legacy]),
+        ]
+
+        # Act
+        summary = collect_usage(dirs)
+
+        # Assert — only the known cost is an observation; the unknown costs
+        # are counted, not averaged in as 0 or -1.
+        overall = summary["overall"]
+        assert overall["count"] == 3
+        assert overall["unknown_costs"] == 2
+        assert overall["cost_complete"] is False
+        assert overall["metrics"]["cost_total"] == {
+            "count": 1,
+            "sum": 0.5,
+            "mean": 0.5,
+            "median": 0.5,
+        }
+        # Token statistics still use every attempt.
+        assert overall["metrics"]["tokens_total"]["count"] == 3
+        assert overall["metrics"]["tokens_total"]["sum"] == pytest.approx(90)
 
 
 class Test04Unit09Repeat03AggregateArtifacts:

@@ -8,6 +8,9 @@ from model responses rather than approximating with a tokenizer.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from histrel.context.token_ledger import (
     TokenLedger,
 )
@@ -120,6 +123,40 @@ class Test04Unit01Ledger01Record:
         assert ledger.total_cached == 0
         assert ledger.last_input == 0
         assert ledger.entry_count == 0
+
+    def test_04_unit_01_ledger_01_record_07_appends_to_usage_log(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the log is written per call so usage survives a
+        # session that crashes before finalization.
+        usage_log = tmp_path / "artifacts" / "token_usage_calls.jsonl"
+        ledger = TokenLedger(usage_log_path=usage_log)
+
+        # Act
+        ledger.record(0, _make_usage(input=100, output=50), "req-1")
+        ledger.record(1, _make_usage(input=200, output=80), "req-2")
+
+        # Assert
+        lines = usage_log.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2
+        first = json.loads(lines[0])
+        assert first["message_index"] == 0
+        assert first["provider_request_id"] == "req-1"
+        assert first["call_kind"] == "model"
+        assert first["usage"]["input"] == 100
+
+    def test_04_unit_01_ledger_01_record_08_usage_log_optional(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        ledger = TokenLedger()
+
+        # Act
+        ledger.record(0, _make_usage(), "req-1")
+
+        # Assert — no log path means no files written.
+        assert list(tmp_path.iterdir()) == []
+        assert ledger.entry_count == 1
 
 
 class Test04Unit02Ledger02Entries:

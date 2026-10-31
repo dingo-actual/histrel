@@ -38,7 +38,7 @@ from benchmark.predict.docker.runner import AGENT_TYPE, DockerRunner
 from benchmark.predict.swebench.build_orchestrator import BuildOrchestrator
 from benchmark.predict.swebench.testspec_adapter import TestSpecAdapter
 from benchmark.predict.types import SessionUsage, UsageData, UsageRecordData
-from benchmark.predict.usage_helpers import accumulate_usage
+from benchmark.predict.usage_helpers import accumulate_usage, known_cost
 from loguru import logger
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ def _empty_usage_accumulator() -> dict[str, int | float]:
         "tokens_cache_write": 0,
         "tokens_total": 0,
         "cost_total": 0.0,
+        "cost_unknown_instances": 0,
         "maximum_context": 0,
     }
 
@@ -150,6 +151,9 @@ def _record_prediction(
     total_data: UsageRecordData = usage_data.get("total", {})
 
     exec_time = token_usage.get("execution_time")
+    # Unknown cost stays unknown: a failed or unpriced run must not be
+    # priced as free.
+    cost_total = known_cost(total_data.get("cost_total"))
     usage_record = UsageRecord(
         instance_id=instance_id,
         execution_time=exec_time if isinstance(exec_time, float) else 0.0,
@@ -158,7 +162,9 @@ def _record_prediction(
         tokens_cache_read=int(total_data.get("tokens_cache_read", 0)),
         tokens_cache_write=int(total_data.get("tokens_cache_write", 0)),
         tokens_total=int(total_data.get("tokens_total", 0)),
-        cost_total=float(total_data.get("cost_total", 0.0)),
+        cost_total=cost_total,
+        cost_complete=cost_total is not None
+        and total_data.get("cost_complete") is True,
         maximum_context=int(total_data.get("maximum_context", 0)),
         raw_usage_data=usage_data,  # type: ignore[arg-type]
     )

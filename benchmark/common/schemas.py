@@ -84,8 +84,9 @@ class UsageRecord(BaseModel):
         tokens_cache_read (int): Cache read tokens.
         tokens_cache_write (int): Cache write tokens.
         tokens_total (int): Total tokens used.
-        cost_total (float): Total cost in USD (0.0 when the agent does not
-            report cost).
+        cost_total (float | None): Total cost in USD, or None when the cost
+            is unknown.
+        cost_complete (bool): Whether the cost accounting is complete.
         maximum_context (int): Maximum context size.
         raw_usage_data (dict | None): Complete agent usage.json content.
         mcp_tools (dict[str, dict[str, int]] | None): Per-tool MCP usage statistics.
@@ -99,7 +100,8 @@ class UsageRecord(BaseModel):
     tokens_cache_read: int
     tokens_cache_write: int
     tokens_total: int
-    cost_total: float = 0.0
+    cost_total: float | None = None
+    cost_complete: bool = False
     maximum_context: int
     raw_usage_data: dict | None = None
     mcp_tools: dict[str, dict[str, int]] | None = None

@@ -28,6 +28,7 @@ _EMPTY_ACCUMULATOR: dict[str, int | float] = {
     "tokens_cache_write": 0,
     "tokens_total": 0,
     "cost_total": 0.0,
+    "cost_unknown_instances": 0,
     "maximum_context": 0,
 }
 
@@ -114,7 +115,8 @@ class Test04Unit02UsageAccumulation02Cost:
 
     def test_cost_placeholder_stays_zero_when_records_omit_cost(self):
         # Usage records without cost fields must leave the zero placeholder
-        # intact and keep token accumulation unaffected.
+        # intact, keep token accumulation unaffected, and count the unknown
+        # cost instead of treating it as a free run.
         session_usage = _make_session_usage()
         instance_usage: UsageData = {
             "none": {
@@ -143,7 +145,45 @@ class Test04Unit02UsageAccumulation02Cost:
         none_record = _read_accumulator(session_usage, "none")
         assert total["cost_total"] == 0.0
         assert none_record["cost_total"] == 0.0
+        assert total["cost_unknown_instances"] == 1
+        assert none_record["cost_unknown_instances"] == 1
         assert total["tokens_total"] == 280
+
+    def test_unknown_cost_is_counted_not_summed(self):
+        # A failed task reports an unknown cost; it must not be summed as 0
+        # or -1, and the incompleteness must stay visible.
+        session_usage = _make_session_usage()
+        failed: UsageData = {
+            "total": {
+                "session_id": "s1",
+                "tokens_input": 100,
+                "tokens_output": 40,
+                "tokens_total": 140,
+                "cost_total": None,
+                "cost_complete": False,
+                "maximum_context": 100,
+            }
+        }
+        succeeded: UsageData = {
+            "total": {
+                "session_id": "s2",
+                "tokens_input": 300,
+                "tokens_output": 60,
+                "tokens_total": 360,
+                "cost_total": 0.02,
+                "cost_complete": True,
+                "maximum_context": 200,
+            }
+        }
+
+        accumulate_usage(session_usage, failed)
+        accumulate_usage(session_usage, succeeded)
+
+        total = _read_accumulator(session_usage, "total")
+        assert total["cost_total"] == pytest.approx(0.02)
+        assert total["cost_unknown_instances"] == 1
+        assert total["tokens_total"] == 500
+        assert total["maximum_context"] == 200
 
     def test_mixed_instances_sum_cost(self):
         session_usage = _make_session_usage()

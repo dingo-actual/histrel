@@ -83,7 +83,7 @@ def run_agent(user_msg: str, runtime: Runtime) -> SessionOutcome:
                 )
             )
         except Exception as error:
-            return runtime.handle_model_error(call_id, error, started)
+            return runtime.finalize(runtime.handle_model_error(call_id, error, started))
 
         _record_model_response(runtime, response, started)
 

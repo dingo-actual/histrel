@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from histrel.context.cost_calculator import CostCalculator, CostReport
 from histrel.context.session_events import SessionEvents
 from histrel.context.timings import Timings
-from histrel.context.token_ledger import TokenLedger
+from histrel.context.token_ledger import TokenLedger, entry_payload
 from histrel.context.tool_metrics import ToolMetrics
 from histrel.core.config import AgentConfig
 
@@ -145,17 +145,7 @@ def _write_token_usage_calls(paths: ArtifactPaths, token_ledger: TokenLedger) ->
         paths (ArtifactPaths): Artifact file paths.
         token_ledger (TokenLedger): Token usage ledger.
     """
-    lines = [
-        json.dumps(
-            {
-                "message_index": entry.message_index,
-                "provider_request_id": entry.provider_request_id,
-                "call_kind": entry.call_kind,
-                "usage": entry.usage.model_dump(),
-            }
-        )
-        for entry in token_ledger.entries
-    ]
+    lines = [json.dumps(entry_payload(entry)) for entry in token_ledger.entries]
     _write_jsonl(paths.token_usage_calls, lines)
 
 
