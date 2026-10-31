@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.scripts]
-histrel = "histrel.cli:main"
+histrel = "histrel.cli:run"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/histrel", "benchmark"]

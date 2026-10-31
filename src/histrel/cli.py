@@ -11,13 +11,19 @@ configuration file, constructs the runtime, and runs the agent loop.
     Important Functions:
         read_env() -> BenchmarkEnv: Read all harness environment variables.
         build_config_from_env(toml_path, env) -> AgentConfig: Build config from TOML + env.
+        build_parser(prog) -> ArgumentParser: Build the command-line parser.
+        run(argv, prog) -> int: Parse arguments and run the agent.
         main(config_path, workspace_root, output_dir) -> int: Run the agent.
 """
 
 from __future__ import annotations
 
+import argparse
 import os
+import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 from loguru import logger
 from pydantic import BaseModel
@@ -252,3 +258,59 @@ def main(
 
     _log_finished(config, runtime, outcome)
     return _exit_code(outcome)
+
+
+def build_parser(prog: str = "histrel") -> argparse.ArgumentParser:
+    """Create the command-line parser shared by every entry point.
+
+    Args:
+        prog (str): Program name shown in usage text. Defaults to
+            "histrel".
+
+    Returns:
+        (argparse.ArgumentParser) Parser for the agent entry point.
+    """
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Run the Histrel code agent on a workspace.",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("stateless", "react"),
+        default="stateless",
+        help="Agent loop mode (default: stateless).",
+    )
+    parser.add_argument("config_path", type=Path, help="Path to the agent TOML.")
+    parser.add_argument("workspace_root", type=Path, help="Workspace root.")
+    parser.add_argument("output_dir", type=Path, help="Artifact output directory.")
+    parser.add_argument("user_msg", help="User request message for the session.")
+    return parser
+
+
+def run(argv: Sequence[str] | None = None, prog: str = "histrel") -> int:
+    """Parse command-line arguments and run the agent.
+
+    Console scripts call this with no arguments, so ``argv`` defaults to
+    ``sys.argv[1:]``.
+
+    Args:
+        argv (Sequence[str] | None): Arguments to parse. Defaults to
+            None, which makes argparse read ``sys.argv[1:]``.
+        prog (str): Program name shown in usage text. Defaults to
+            "histrel".
+
+    Returns:
+        (int) Exit code: 0 for success, 1 for failure.
+    """
+    args = build_parser(prog).parse_args(argv)
+    return main(
+        user_msg=args.user_msg,
+        config_path=args.config_path,
+        workspace_root=args.workspace_root,
+        output_dir=args.output_dir,
+        mode=cast(Mode, args.mode),
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(run())

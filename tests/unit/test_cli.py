@@ -17,11 +17,12 @@ from dulwich.porcelain import add, commit
 from dulwich.repo import Repo
 
 from benchmark.predict.agents.prompts import get_bench_agent_sys_prompts
-from histrel.__main__ import build_parser
 from histrel.cli import (
     build_config_from_env,
+    build_parser,
     main,
     read_env,
+    run,
 )
 from histrel.core.config import Mode
 from histrel.core.runtime import Runtime
@@ -305,6 +306,30 @@ class Test04Unit03Cli04ModeParser:
             build_parser().parse_args(
                 ["--mode", "agentic", "cfg.toml", "workspace", "out", "Fix it."]
             )
+
+    def test_04_unit_03_cli_04_mode_parser_05_run_takes_arguments(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # Arrange — the console-script target must accept a plain argv
+        toml_path = _write_toml(tmp_path / "config.toml", _baseline_toml())
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        _init_workspace(workspace)
+        _patch_cli_env(monkeypatch)
+        monkeypatch.setattr("histrel.cli.run_agent", _fake_run_agent(workspace))
+
+        # Act
+        exit_code = run(
+            [
+                str(toml_path),
+                str(workspace),
+                str(tmp_path / "output"),
+                "Fix the failing test.",
+            ]
+        )
+
+        # Assert
+        assert exit_code == 0
 
 
 class Test04Unit03Cli06Prompts:
