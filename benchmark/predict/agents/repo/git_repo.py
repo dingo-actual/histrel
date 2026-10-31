@@ -14,6 +14,15 @@ from pathlib import Path
 from loguru import logger
 
 
+#: Files the harness writes into the workspace after the base commit. They are
+#: harness state, not model changes, so patch extraction always skips them.
+HARNESS_GENERATED_PATHS = (
+    "agent_config.toml",
+    "bench_settings.toml",
+    "benchmark/bench_settings.toml",
+)
+
+
 class GitRepoManager:
     """Git operations for repository validation and diff extraction."""
 
@@ -59,36 +68,59 @@ class GitRepoManager:
             repo_dir=str(repo_dir),
         ).info("Repository validation successful")
 
-    def extract_patch(self, repo_dir: Path) -> str:
-        """Extract patch from git working tree changes."""
-        # Check for modified files first
-        result = self.run(["git", "diff", "--name-only"], cwd=repo_dir)
+    def extract_patch(self, repo_dir: Path, base_commit: str | None = None) -> str:
+        """Extract the workspace changes relative to the base commit.
+
+        The patch must describe the final workspace, not the difference
+        between the working tree and the index: staged changes, new files,
+        and commits made by the agent are all included. Everything is staged
+        (ignored files stay out), then diffed against ``base_commit``, so the
+        result applies cleanly to a fresh checkout of that commit with
+        ``git apply``, the way SWE-bench evaluation applies a prediction.
+
+        Args:
+            repo_dir (Path): Path to the repository.
+            base_commit (str | None): Commit the changes are measured from.
+                Defaults to None, which measures from HEAD.
+
+        Returns:
+            (str) Unified patch, or "" when the workspace has no changes.
+        """
+        base = base_commit or "HEAD"
+        excluded = [f":(exclude){path}" for path in HARNESS_GENERATED_PATHS]
+
+        staged = self.run(["git", "add", "-A", "--", ".", *excluded], cwd=repo_dir)
+        if staged.returncode != 0:
+            logger.bind(
+                component="benchmark.predict.agents.repo.git_repo",
+                repo_dir=str(repo_dir),
+                returncode=staged.returncode,
+                stderr=staged.stderr,
+                stderr_length=len(staged.stderr),
+                stdout=staged.stdout,
+                stdout_length=len(staged.stdout),
+            ).error("Git add -A failed")
+            return ""
+
+        result = self.run(
+            [
+                "git",
+                "diff",
+                "--cached",
+                "--unified=3",
+                "--no-color",
+                base,
+                "--",
+                ".",
+                *excluded,
+            ],
+            cwd=repo_dir,
+        )
         if result.returncode != 0:
             logger.bind(
                 component="benchmark.predict.agents.repo.git_repo",
                 repo_dir=str(repo_dir),
-                returncode=result.returncode,
-                stderr=result.stderr,
-                stderr_length=len(result.stderr),
-                stdout=result.stdout,
-                stdout_length=len(result.stdout),
-            ).error("Git diff --name-only failed")
-            return ""
-
-        if not result.stdout.strip():
-            # No changes made - this is a legitimate empty patch
-            logger.bind(
-                component="benchmark.predict.agents.repo.git_repo",
-                repo_dir=str(repo_dir),
-            ).info("No git changes detected - empty patch")
-            return ""
-
-        # Get the actual diff
-        result = self.run(["git", "diff", "--unified=3", "--no-color"], cwd=repo_dir)
-        if result.returncode != 0:
-            logger.bind(
-                component="benchmark.predict.agents.repo.git_repo",
-                repo_dir=str(repo_dir),
+                base_commit=base,
                 returncode=result.returncode,
                 stderr=result.stderr,
                 stderr_length=len(result.stderr),
@@ -98,11 +130,13 @@ class GitRepoManager:
             return ""
 
         patch_text = str(result.stdout)
-        if not patch_text:
+        if not patch_text.strip():
+            # No changes from the base commit - a legitimate empty patch
             logger.bind(
                 component="benchmark.predict.agents.repo.git_repo",
                 repo_dir=str(repo_dir),
-            ).warning("Git diff returned empty output despite detecting changes")
+                base_commit=base,
+            ).info("No git changes detected - empty patch")
             return ""
 
         patch_lines = [

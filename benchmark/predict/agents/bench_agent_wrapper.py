@@ -594,8 +594,11 @@ class BenchAgentWrapper:
         # Log output
         self._log_agent_output(result, session_id, instance_id, agent_type)
 
-        # Extract patch from git diff
-        patch_text = self.repo_manager.extract_patch(repo_dir)
+        # Extract the final workspace state relative to the base commit
+        base_commit = instance.get("base_commit")
+        patch_text = self.repo_manager.extract_patch(
+            repo_dir, base_commit if isinstance(base_commit, str) else None
+        )
 
         # Load usage data from agent artifacts
         # The agent writes to {output_dir}/{session_id}/artifacts/costs.json
