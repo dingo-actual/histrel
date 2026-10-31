@@ -67,16 +67,21 @@ class TerminalEvaluator:
         elapsed_seconds: float,
         turn_count: int,
         tool_call_count: int,
+        tokens_used: int = 0,
     ) -> SessionOutcome | None:
         """Evaluate whether any budget is exhausted.
 
         A budget of 0 means unlimited. A budget is exhausted when the
-        current count strictly exceeds the budget.
+        current count strictly exceeds the budget, except the token
+        budget, which is exhausted on reaching the working limit so a
+        turn cannot overrun it.
 
         Args:
             elapsed_seconds (float): Elapsed wall-clock seconds.
             turn_count (int): Number of model turns completed.
             tool_call_count (int): Number of tool calls executed.
+            tokens_used (int): Prompt plus completion tokens used so far.
+                Defaults to 0.
 
         Returns:
             (SessionOutcome | None) Outcome if a budget is exhausted,
@@ -102,4 +107,30 @@ class TerminalEvaluator:
                 reason=f"max_tool_calls ({budgets.max_tool_calls}) exceeded: {tool_call_count} calls",
             )
 
+        working_budget = self._working_token_budget()
+        if working_budget > 0 and tokens_used >= working_budget:
+            return SessionOutcome(
+                status=SessionStatus.BUDGET_EXHAUSTED,
+                reason=(
+                    f"token_budget ({budgets.token_budget}) exhausted: "
+                    f"{tokens_used} tokens used, working limit "
+                    f"{working_budget} after {budgets.token_budget_buffer} "
+                    "reserved for finalization"
+                ),
+            )
+
         return None
+
+    def _working_token_budget(self) -> int:
+        """Return the token count at which the session must stop.
+
+        The reserve in ``token_budget_buffer`` keeps room below the total
+        budget for the session to finish the turn in progress.
+
+        Returns:
+            (int) Working token limit; 0 means unlimited.
+        """
+        budgets = self._config.budgets
+        if budgets.token_budget <= 0:
+            return 0
+        return budgets.token_budget - budgets.token_budget_buffer

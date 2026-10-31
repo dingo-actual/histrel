@@ -56,11 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # SWE-bench specific options
-    parser.add_argument("--split", type=str, default="test")
+    # SWE-bench specific options. Defaults stay None so an omitted flag
+    # leaves the configuration file's value in place.
+    parser.add_argument("--split", type=str, help="Override dataset split.")
     parser.add_argument("--dataset-id", type=str)
-    parser.add_argument("--max-instances", type=int, default=25)
-    parser.add_argument("--timeout-seconds", type=int, default=7200)
+    parser.add_argument("--max-instances", type=int)
+    parser.add_argument("--timeout-seconds", type=int)
     parser.add_argument(
         "--instances", type=str, help="Path to SWE-bench instances JSONL"
     )
@@ -105,13 +106,13 @@ def _apply_overrides(cfg, args: argparse.Namespace):
 
     # SWE-bench overrides
     swe_updates = {}
-    if hasattr(args, "split") and args.split:
+    if getattr(args, "split", None) is not None:
         swe_updates["split"] = args.split
-    if hasattr(args, "dataset_id") and args.dataset_id:
+    if getattr(args, "dataset_id", None) is not None:
         swe_updates["dataset_id"] = args.dataset_id
-    if hasattr(args, "max_instances") and args.max_instances is not None:
+    if getattr(args, "max_instances", None) is not None:
         swe_updates["max_instances"] = args.max_instances
-    if hasattr(args, "timeout_seconds") and args.timeout_seconds is not None:
+    if getattr(args, "timeout_seconds", None) is not None:
         swe_updates["timeout_seconds"] = args.timeout_seconds
 
     if swe_updates:

@@ -35,7 +35,7 @@ from benchmark.predict.agents.pyc_preflight import (
 )
 from benchmark.predict.agents.repo import GitRepoManager
 from benchmark.predict.agents.templates import MESSAGE_TEMPLATE, render_template
-from benchmark.predict.config import Mode
+from benchmark.predict.config import DEFAULT_MODEL, HistrelConfig, Mode
 from benchmark.predict.usage_helpers import known_cost, known_measurement
 from benchmark.predict.types import AGENT_TYPE, build_attempt_identity
 import histrel
@@ -47,7 +47,7 @@ from benchmark.common.logging import safe_log
 from loguru import logger
 
 # Default model when bench_settings.toml does not specify one.
-_DEFAULT_MODEL = "accounts/fireworks/models/glm-5p3-flash"
+_DEFAULT_MODEL = DEFAULT_MODEL
 
 
 def _repetition_from_env() -> int:
@@ -134,6 +134,19 @@ def _token_count(value: object) -> int:
     """
     measurement = known_measurement(value)
     return 0 if measurement is None else int(measurement)
+
+
+def _histrel_settings(config: dict) -> HistrelConfig:
+    """Return the ``[histrel]`` settings of a harness config.
+
+    Args:
+        config (dict): Configuration dictionary from bench_settings.toml.
+
+    Returns:
+        (HistrelConfig) Validated settings; defaults when the table is absent.
+    """
+    section = config.get("histrel") or {}
+    return HistrelConfig.model_validate(section if isinstance(section, dict) else {})
 
 
 def _read_jsonl_records(path: Path) -> list[dict]:
@@ -304,11 +317,19 @@ class BenchAgentWrapper:
         Returns:
             (str) Model identifier.
         """
-        histrel_cfg = config.get("histrel", {})
-        model = histrel_cfg.get("models", _DEFAULT_MODEL)
-        if isinstance(model, dict):
-            model = model.get("default", _DEFAULT_MODEL)
-        return str(model)
+        return _histrel_settings(config).model_id()
+
+    def _parse_budgets_from_config(self, config: dict) -> tuple[int, int]:
+        """Parse the token budgets from the harness bench_settings.toml config.
+
+        Args:
+            config (dict): Configuration dictionary from bench_settings.toml.
+
+        Returns:
+            (tuple[int, int]) The token budget and its finalization reserve.
+        """
+        histrel_cfg = _histrel_settings(config)
+        return histrel_cfg.token_budget, histrel_cfg.token_budget_buffer
 
     def _load_config(self) -> dict:
         """Load configuration from the harness bench_settings.toml file.
@@ -324,8 +345,8 @@ class BenchAgentWrapper:
         """Write the agent TOML config to the repo directory.
 
         Read the template from the repository-root ``histrel.toml``, then
-        replaces the model name and agent system prompt based on the
-        harness config and the agent type.
+        replaces the model name, the token budgets, and the agent system
+        prompt based on the harness config and the agent type.
         The agent system prompt is the rendered prompt from
         ``get_bench_agent_sys_prompts`` for the active agent type
         (bench-agent or bench-agent-no-mt) and mode.
@@ -358,6 +379,23 @@ class BenchAgentWrapper:
             f'model_name = "{_DEFAULT_MODEL}"',
             f'model_name = "{model}"',
         )
+
+        # Token budgets come from the resolved harness config. The newline
+        # anchor keeps the replacement off token_budget_buffer.
+        token_budget, token_budget_buffer = self._parse_budgets_from_config(
+            harness_config
+        )
+        for field, value in (
+            ("token_budget", token_budget),
+            ("token_budget_buffer", token_budget_buffer),
+        ):
+            marker = f"\n{field} = 0"
+            if marker not in config_text:
+                raise RuntimeError(
+                    f"{field} placeholder not found in agent config "
+                    f"template: {_AGENT_CONFIG_TEMPLATE_PATH}"
+                )
+            config_text = config_text.replace(marker, f"\n{field} = {value}")
 
         # Replace the placeholder system prompt with the rendered prompt for
         # the agent type. json.dumps output is a valid TOML basic string

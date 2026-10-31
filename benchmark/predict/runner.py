@@ -370,6 +370,21 @@ async def run_prediction(
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "artifacts").mkdir(parents=True, exist_ok=True)
 
+    # Resolve the configuration once for the whole run: the file is both the
+    # record kept with the results and the settings the containers mount.
+    resolved_settings = config.write_bench_settings(run_dir)
+    logger.bind(
+        run_name=run_name,
+        component="benchmark.predict.runner",
+        origin="bench_harness_predict",
+    ).info(
+        "Wrote resolved benchmark settings",
+        path=str(resolved_settings),
+        model=config.histrel.model_id(),
+        token_budget=config.histrel.token_budget,
+        token_budget_buffer=config.histrel.token_budget_buffer,
+    )
+
     predictions_file = run_dir / "bench_agent_predictions.jsonl"
     usage_file = run_dir / "bench_agent_usage.jsonl"
 

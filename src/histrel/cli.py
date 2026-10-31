@@ -22,7 +22,7 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel
 
-from histrel.core.config import AgentConfig, Budgets, Mode, SystemPrompts, load_config
+from histrel.core.config import AgentConfig, Mode, SystemPrompts, load_config
 from histrel.core.runtime import Runtime, run_agent
 from histrel.logging.agent_logger import setup_file_sink
 from histrel.prompts import get_histrel_sys_prompts
@@ -100,10 +100,8 @@ def build_config_from_env(
     if env.instance_id:
         overrides["task_id"] = env.instance_id
     if env.timeout_seconds > 0:
-        overrides["budgets"] = Budgets(
-            max_wall_seconds=env.timeout_seconds,
-            max_turns=config.budgets.max_turns,
-            max_tool_calls=config.budgets.max_tool_calls,
+        overrides["budgets"] = config.budgets.model_copy(
+            update={"max_wall_seconds": env.timeout_seconds}
         )
 
     if overrides:

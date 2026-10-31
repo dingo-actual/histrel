@@ -27,7 +27,8 @@ log = logger.bind(component="bench_agent.runtime")
 def evaluate_terminal_conditions(runtime: Runtime) -> SessionOutcome | None:
     """Evaluate whether the session should terminate.
 
-    Checks budget exhaustion.
+    Checks budget exhaustion, including the session's cumulative token
+    usage against its token budgets.
 
     Args:
         runtime (Runtime): The runtime session state.
@@ -36,8 +37,10 @@ def evaluate_terminal_conditions(runtime: Runtime) -> SessionOutcome | None:
         (SessionOutcome | None) Outcome if terminal, None otherwise.
     """
     elapsed = monotonic_now() - runtime.session_start
+    ledger = runtime.token_ledger
     return runtime.terminal_evaluator.evaluate_budgets(
         elapsed_seconds=elapsed,
         turn_count=runtime.turn_count,
         tool_call_count=runtime.tool_call_count,
+        tokens_used=ledger.total_input + ledger.total_output,
     )

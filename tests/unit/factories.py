@@ -58,6 +58,8 @@ def build_agent_config(
     max_wall_seconds: int = 0,
     max_turns: int = 0,
     max_tool_calls: int = 0,
+    token_budget: int = 0,
+    token_budget_buffer: int = 0,
     context_limit: int = 128000,
     max_output: int = 16384,
     duplicate_call_window: int | None = None,
@@ -75,6 +77,8 @@ def build_agent_config(
         max_wall_seconds (int): Wall-clock budget.
         max_turns (int): Turn budget.
         max_tool_calls (int): Tool-call budget.
+        token_budget (int): Total token budget.
+        token_budget_buffer (int): Tokens reserved for finalization.
         context_limit (int): Model context limit in tokens.
         max_output (int): Model maximum output tokens.
         duplicate_call_window (int | None): Duplicate-call window;
@@ -98,6 +102,8 @@ def build_agent_config(
             max_wall_seconds=max_wall_seconds,
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
+            token_budget=token_budget,
+            token_budget_buffer=token_budget_buffer,
         ),
     }
     if duplicate_call_window is not None:

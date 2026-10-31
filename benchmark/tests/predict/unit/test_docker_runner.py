@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import benchmark.predict.docker.runner as runner_module
-from benchmark.predict.config import PredictorConfig
+from benchmark.predict.config import HistrelConfig, PredictorConfig
 from benchmark.predict.docker.instance_record import build_agent_instance
 from benchmark.predict.docker.runner import DockerRunner
 from benchmark.predict.types import build_attempt_identity
@@ -163,6 +163,39 @@ class Test04Unit02Docker02Runner02RunAgent:
         assert mounts["/workspace/output"] == attempt_dir.resolve()
         assert not mounts["/workspace/instance"].is_relative_to(attempt_dir.resolve())
         assert not stale_dir.exists()
+
+    def test_04_unit_02_docker_02_runner_02_run_agent_04b_settings_mount(
+        self, docker_client_stub: DockerClientStub, tmp_path: Path
+    ) -> None:
+        """The container mounts the resolved run settings, not the repo file."""
+        # Arrange — a custom config the repository file does not contain
+        cfg = PredictorConfig(
+            output_dir=str(tmp_path / "results"),
+            run_name="bench-custom-config",
+            histrel=HistrelConfig(models="accounts/fireworks/models/custom-model"),
+        )
+        cfg.write_bench_settings(Path(cfg.output_dir) / cfg.run_name)
+        runner = DockerRunner(docker_client_stub)
+        out_dir = Path(cfg.output_dir) / cfg.run_name / "artifacts"
+
+        # Act
+        runner.run_agent(
+            {"instance_id": "dummy", "repo": "owner/repo"},
+            image="swebench/test:latest",
+            config=cfg,
+            output_dir=out_dir,
+            timeout=5,
+        )
+
+        # Assert
+        call = docker_client_stub.containers.run_calls[0]
+        mounts = {spec["bind"]: Path(host) for host, spec in call["volumes"].items()}
+        mounted = mounts["/workspace/bench_settings.toml"]
+        assert (
+            mounted
+            == (Path(cfg.output_dir) / cfg.run_name / "bench_settings.toml").resolve()
+        )
+        assert "custom-model" in mounted.read_text(encoding="utf-8")
 
     def test_04_unit_02_docker_02_runner_02_run_agent_05_own_attempt_dir(
         self, docker_client_stub: DockerClientStub, tmp_path: Path

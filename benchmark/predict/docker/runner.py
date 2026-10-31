@@ -147,10 +147,14 @@ class DockerRunner:
                 "mode": "ro",
             },
         }
-        # Mount benchmark/bench_settings.toml if present (read-only)
-        bench_toml = (
-            Path(__file__).resolve().parent.parent.parent / "bench_settings.toml"
-        )
+        # Mount the run's resolved settings so the container sees the
+        # configuration the host resolved (custom --config included). Fall
+        # back to the repository settings for callers that did not write it.
+        bench_toml = Path(config.output_dir) / config.run_name / "bench_settings.toml"
+        if not bench_toml.exists():
+            bench_toml = Path(__file__).resolve().parent.parent.parent / (
+                "bench_settings.toml"
+            )
         if bench_toml.exists():
             volumes[str(bench_toml.resolve())] = {
                 "bind": "/workspace/bench_settings.toml",

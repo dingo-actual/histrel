@@ -9,9 +9,9 @@
 # optional "default" entry.
 models = "accounts/fireworks/models/glm-5p3-flash"
 # token_budget: total budget for the entire run (prompt + completion).
-# solution_token_budget: portion reserved for finalization.
+# token_budget_buffer: portion reserved for finalization.
 token_budget = 3_000_000
-solution_token_budget = 25_000
+token_budget_buffer = 25_000
 
 [benchmark]
 output_dir = "benchmark/results"

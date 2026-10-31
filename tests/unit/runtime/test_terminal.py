@@ -77,6 +77,87 @@ class Test04Unit01Terminal01Budgets:
             assert outcome is None
 
 
+class Test04Unit01Terminal02TokenBudgets:
+    """Token budget exhaustion terminal conditions."""
+
+    @pytest.mark.parametrize(
+        "token_budget, reserve, tokens_used, should_terminate",
+        [
+            # No token budget set — never terminates on tokens
+            (0, 0, 10_000_000, False),
+            # Below the working limit
+            (10_000, 1_000, 8_999, False),
+            # At the working limit — stops before overrunning the total
+            (10_000, 1_000, 9_000, True),
+            # Zero reserve makes the total the working limit
+            (10_000, 0, 10_000, True),
+            # Zero reserve, below the total
+            (10_000, 0, 9_999, False),
+        ],
+        ids=[
+            "unlimited",
+            "below_working_limit",
+            "at_working_limit",
+            "no_reserve_at_total",
+            "no_reserve_below_total",
+        ],
+    )
+    def test_04_unit_01_terminal_02_token_budget_01_exhaustion(
+        self,
+        token_budget: int,
+        reserve: int,
+        tokens_used: int,
+        should_terminate: bool,
+    ) -> None:
+        # Arrange
+        config = build_agent_config(
+            token_budget=token_budget,
+            token_budget_buffer=reserve,
+        )
+        evaluator = TerminalEvaluator(config)
+
+        # Act
+        outcome = evaluator.evaluate_budgets(
+            elapsed_seconds=0.0,
+            turn_count=1,
+            tool_call_count=1,
+            tokens_used=tokens_used,
+        )
+
+        # Assert
+        if should_terminate:
+            assert outcome is not None
+            assert outcome.status == SessionStatus.BUDGET_EXHAUSTED
+            assert "token_budget" in outcome.reason
+        else:
+            assert outcome is None
+
+    def test_04_unit_01_terminal_02_token_budget_02_reason_names_reserve(self) -> None:
+        # Arrange
+        config = build_agent_config(token_budget=1000, token_budget_buffer=400)
+        evaluator = TerminalEvaluator(config)
+
+        # Act
+        outcome = evaluator.evaluate_budgets(
+            elapsed_seconds=0.0,
+            turn_count=1,
+            tool_call_count=0,
+            tokens_used=600,
+        )
+
+        # Assert — the working limit and the reserve are both reported
+        assert outcome is not None
+        assert "working limit 600" in outcome.reason
+        assert "400" in outcome.reason
+
+    def test_04_unit_01_terminal_02_token_budget_03_reserve_must_be_below_total(
+        self,
+    ) -> None:
+        # Act / Assert — a reserve that swallows the budget is rejected
+        with pytest.raises(ValueError, match="smaller than token_budget"):
+            build_agent_config(token_budget=1_000, token_budget_buffer=1_000)
+
+
 class Test04Unit04Terminal04SessionOutcome:
     """SessionOutcome model."""
 

@@ -21,3 +21,6 @@ model_api_key_env = "FIREWORKS_API_KEY"
 
 [budgets]
 max_turns = 300
+# 0 = unlimited. The harness fills these from its own settings.
+token_budget = 0
+token_budget_buffer = 0

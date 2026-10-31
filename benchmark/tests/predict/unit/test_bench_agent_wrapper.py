@@ -162,6 +162,48 @@ class Test04Unit03BenchAgentWrapper03WriteAgentConfig:
             assert 'model_provider = "fireworks"' in content
             assert 'model_api_key_env = "FIREWORKS_API_KEY"' in content
 
+    def test_04_unit_03_bench_agent_wrapper_03_write_config_06_token_budgets(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — budgets resolved by the harness must reach the agent
+        config_path = tmp_path / "histrel.toml"
+        config_path.write_text(
+            _MINIMAL_TOML + "token_budget = 900000\ntoken_budget_buffer = 10000\n"
+        )
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        # Act
+        with make_bench_agent_wrapper(config_path) as wrapper:
+            agent_config = wrapper._write_agent_config(repo_dir)
+            written = tomllib.loads(agent_config.read_text(encoding="utf-8"))
+
+        # Assert
+        assert written["budgets"]["token_budget"] == 900000
+        assert written["budgets"]["token_budget_buffer"] == 10000
+
+    def test_04_unit_03_bench_agent_wrapper_03_write_config_07_budgets_reach_cli(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange
+        from histrel.cli import load_config
+
+        config_path = tmp_path / "histrel.toml"
+        config_path.write_text(
+            _MINIMAL_TOML + "token_budget = 900000\ntoken_budget_buffer = 10000\n"
+        )
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        # Act — the agent CLI loads the config the wrapper wrote
+        with make_bench_agent_wrapper(config_path) as wrapper:
+            agent_config = wrapper._write_agent_config(repo_dir)
+        loaded = load_config(agent_config)
+
+        # Assert — the budgets survive into the running agent config
+        assert loaded.budgets.token_budget == 900000
+        assert loaded.budgets.token_budget_buffer == 10000
+
     @pytest.mark.parametrize("mode", _MODES)
     def test_04_unit_03_bench_agent_wrapper_03_write_config_05_system_prompt_histrel(
         self, tmp_path: Path, mode: Mode

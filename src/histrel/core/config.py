@@ -6,7 +6,7 @@ Defines the Pydantic v2 AgentConfig and its sub-models, loaded from a flat
 TOML file. The model uses extra="forbid" to reject unknown fields.
 
     Important Classes:
-        Budgets: Wall-clock, turn, and tool-call budgets.
+        Budgets: Wall-clock, turn, tool-call, and token budgets.
         Compaction: Context compaction thresholds.
         Tests: Test runner registry configuration.
         SystemPrompts: Initialize and step system prompts.
@@ -22,7 +22,7 @@ import tomllib
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # ---------------------------------------------------------------------------
 # Sub-models
@@ -38,11 +38,24 @@ class Budgets(BaseModel):
         max_wall_seconds (int): Maximum wall-clock time in seconds.
         max_turns (int): Maximum number of model turns.
         max_tool_calls (int): Maximum number of tool calls.
+        token_budget (int): Maximum prompt plus completion tokens for the
+            session, across every model and routine call.
+        token_budget_buffer (int): Portion of ``token_budget`` held back
+            so the session can finish its current turn; the session stops
+            once ``token_budget - token_budget_buffer`` is used.
     """
 
     max_wall_seconds: int = 0
     max_turns: int = 0
     max_tool_calls: int = 0
+    token_budget: int = 0
+    token_budget_buffer: int = 0
+
+    @model_validator(mode="after")
+    def _validate_token_reserve(self) -> Budgets:
+        if self.token_budget > 0 and self.token_budget_buffer >= self.token_budget:
+            raise ValueError("token_budget_buffer must be smaller than token_budget")
+        return self
 
 
 class Compaction(BaseModel):
