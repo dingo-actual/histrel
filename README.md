@@ -160,6 +160,7 @@ python -m benchmark.predict.cli \
   --dataset-id princeton-nlp/SWE-bench_Verified \
   --instance-ids django__django-11099,astropy__astropy-12907 \
   --timeout-seconds 7200 \
+  --repeat 3 \
   --rebuild \
   --verbose                       # stream container stdout/stderr to stderr
 ```
@@ -206,9 +207,11 @@ The benchmark writes to `<output_dir>/<run_name>/`:
 
 | Path | Contents |
 | --- | --- |
-| `bench_agent_predictions.jsonl` | One prediction record per instance. |
+| `bench_agent_predictions.jsonl` | One prediction record per instance. With `--repeat`, every prediction from every repetition, tagged with a `repetition` number. |
 | `bench_agent_usage.jsonl` | Token usage per instance. |
+| `bench_agent_usage_aggregate.json` | Written only with `--repeat`: per-instance and overall sum, mean, and median of each usage metric. |
 | `artifacts/<instance>/` | Per-instance session artifacts. |
+| `repeat_NN/` | Written only with `--repeat`: one full run directory per repetition, with the same files. |
 
 ## Development
 

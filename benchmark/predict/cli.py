@@ -15,9 +15,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 from benchmark.common.io import ensure_dir, read_jsonl, run_output_dir
-from benchmark.predict.config import load_predictor_config
+from benchmark.predict.config import PredictorConfig, load_predictor_config
+from benchmark.predict.repeat import (
+    AggregatePaths,
+    aggregate_repetitions,
+    repeat_dir_name,
+)
 from benchmark.predict.runner import run_prediction
 from loguru import logger
 
@@ -39,6 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--output-dir", type=str, help="Override output dir.")
     parser.add_argument("--run-name", type=str, help="Override run name.")
     parser.add_argument("--seed", type=int, help="Override seed.")
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help=(
+            "Run the full instance set this many times (default: 1). Each "
+            "repetition writes to its own directory; aggregate predictions "
+            "and token usage are written at the run root."
+        ),
+    )
 
     # SWE-bench specific options
     parser.add_argument("--split", type=str, default="test")
@@ -118,10 +134,55 @@ def _apply_overrides(cfg, args: argparse.Namespace):
     return cfg
 
 
+def _run_repeated(
+    cfg: PredictorConfig,
+    instances: list[dict],
+    repeats: int,
+) -> AggregatePaths:
+    """Run the instance set ``repeats`` times and aggregate the results.
+
+    Each repetition is a normal run in ``<output_dir>/<run_name>/repeat_NN``.
+
+    Args:
+        cfg (PredictorConfig): Predictor configuration.
+        instances (list[dict]): Instances to run in every repetition.
+        repeats (int): Number of repetitions (at least 2).
+
+    Returns:
+        (AggregatePaths) Paths to the aggregate artifacts.
+    """
+    run_root = Path(cfg.output_dir) / cfg.run_name
+    repeat_dirs: list[Path] = []
+
+    for index in range(1, repeats + 1):
+        repetition = cfg.model_copy(
+            update={
+                "output_dir": run_root.as_posix(),
+                "run_name": repeat_dir_name(index),
+            }
+        )
+        logger.bind(
+            component="benchmark.predict.cli",
+            origin="bench_harness_predict",
+            event="repeat.start",
+        ).info(
+            f"Starting repetition {index}/{repeats}",
+            run_name=repetition.run_name,
+            output_dir=repetition.output_dir,
+        )
+        repeat_dirs.append(
+            asyncio.run(run_prediction(repetition, instances, build_images=index == 1))
+        )
+
+    return aggregate_repetitions(run_root, repeat_dirs)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the predictor CLI."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.repeat < 1:
+        parser.error("--repeat must be at least 1")
 
     cfg = load_predictor_config(args.config)
     cfg = _apply_overrides(cfg, args)
@@ -222,10 +283,22 @@ def main(argv: list[str] | None = None) -> int:
 
     # Run prediction generation
     try:
-        output_path = asyncio.run(run_prediction(cfg, instances))
-        logger.bind(
-            component="histrel.benchmark.predict.cli", origin="bench_harness_predict"
-        ).info(f"Prediction generation complete. Output: {output_path}")
+        if args.repeat == 1:
+            output_path = asyncio.run(run_prediction(cfg, instances))
+            logger.bind(
+                component="histrel.benchmark.predict.cli",
+                origin="bench_harness_predict",
+            ).info(f"Prediction generation complete. Output: {output_path}")
+        else:
+            aggregates = _run_repeated(cfg, instances, args.repeat)
+            logger.bind(
+                component="histrel.benchmark.predict.cli",
+                origin="bench_harness_predict",
+            ).info(
+                f"Repeated prediction generation complete over {args.repeat} runs. "
+                f"Predictions: {aggregates.predictions}",
+                usage_aggregate=str(aggregates.usage),
+            )
         return 0
     except Exception as exc:
         if cfg.verbose:

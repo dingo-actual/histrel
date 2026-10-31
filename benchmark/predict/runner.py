@@ -238,7 +238,12 @@ def _run_agent_instance(
             ).error(f"{AGENT_TYPE} patch generation failed", error=str(exc))
 
 
-async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path:
+async def run_prediction(
+    config: PredictorConfig,
+    instances: list[dict],
+    *,
+    build_images: bool = True,
+) -> Path:
     """Main prediction orchestration with Rich progress bars.
 
     Coordinates Docker image building and agent execution for prediction
@@ -248,6 +253,9 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
     Args:
         config (PredictorConfig): Predictor configuration.
         instances (list[dict]): List of SWE-bench test instances to process.
+        build_images (bool): Build the instance images. Repeated runs pass
+            False after the first repetition so images are built once.
+            Defaults to True.
 
     Returns:
         (Path) Path to output directory containing predictions and artifacts.
@@ -305,17 +313,9 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
             ).error("Failed to initialize Docker client", error=str(exc))
         raise RuntimeError(f"Docker initialization failed: {exc}") from exc
 
-    # Build SWE-bench images using BuildOrchestrator
+    # Adapters describe the instance images. Building them is skipped for
+    # repetitions after the first, which reuse the images already built.
     histrel_repo_path = Path(__file__).resolve().parent.parent.parent
-
-    orchestrator = BuildOrchestrator(client, histrel_repo_path)
-
-    logger.bind(
-        run_name=run_name,
-        component="benchmark.predict.runner",
-        origin="bench_harness_predict",
-        event="image.build_start",
-    ).info("Building SWE-bench images")
 
     spec_adapters: list[TestSpecAdapter] = []
     for instance in instances:
@@ -327,18 +327,26 @@ async def run_prediction(config: PredictorConfig, instances: list[dict]) -> Path
         instance["has_test_runner"] = has_test_runner
         spec_adapters.append(adapter)
 
-    orchestrator.build_images(
-        spec_adapters,
-        force_rebuild_env=config.rebuild,
-        force_rebuild_instances=config.rebuild,
-    )
+    if build_images:
+        logger.bind(
+            run_name=run_name,
+            component="benchmark.predict.runner",
+            origin="bench_harness_predict",
+            event="image.build_start",
+        ).info("Building SWE-bench images")
 
-    logger.bind(
-        run_name=run_name,
-        component="benchmark.predict.runner",
-        event="image.build_complete",
-        origin="bench_harness_predict",
-    ).info("SWE-bench images built successfully")
+        BuildOrchestrator(client, histrel_repo_path).build_images(
+            spec_adapters,
+            force_rebuild_env=config.rebuild,
+            force_rebuild_instances=config.rebuild,
+        )
+
+        logger.bind(
+            run_name=run_name,
+            component="benchmark.predict.runner",
+            event="image.build_complete",
+            origin="bench_harness_predict",
+        ).info("SWE-bench images built successfully")
 
     # Build mapping from instance_id to SWE-bench instance image tag
     instance_images: dict[str, str] = {
