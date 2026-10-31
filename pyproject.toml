@@ -35,11 +35,15 @@ histrel = "histrel.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/histrel", "benchmark"]
+exclude = ["/benchmark/vendor"]
 
 # The agent config template lives at the repository root but is read by the
 # installed benchmark harness at runtime, so ship a copy inside the package.
 [tool.hatch.build.targets.wheel.force-include]
 "histrel.toml" = "histrel/histrel.toml"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/benchmark/vendor"]
 
 [tool.setuptools.package-data]
 "histrel.context" = ["fireworks_pricing_catalog.json"]

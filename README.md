@@ -89,7 +89,10 @@ benchmark/
 ## Setup
 
 ```bash
-uv sync
+git clone https://github.com/dingo-actual/histrel.git
+cd histrel
+git submodule update --init --recursive
+uv sync --group benchmark
 source .venv/bin/activate
 ```
 
