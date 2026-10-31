@@ -225,6 +225,44 @@ class Test04Unit02Cost02Report:
         # Assert
         assert report.is_complete is True
 
+    def test_04_unit_02_cost_02_report_06_unavailable_usage_marks_incomplete(
+        self,
+    ) -> None:
+        # Arrange — the second call's provider reported no usage at all
+        ledger = TokenLedger()
+        _record_model_call(ledger, request_id="r1")
+        ledger.record(
+            message_index=1,
+            usage=Usage(available=False),
+            provider_request_id="r2",
+            call_kind="model",
+        )
+        calculator = CostCalculator(pricing=TEST_PRICING)
+
+        # Act
+        report = calculator.compute_report(ledger)
+
+        # Assert — the known charge stays as a partial total, but the
+        # session cost is not presented as measured.
+        assert report.is_complete is False
+        assert report.total_cost == pytest.approx(0.007)
+        assert [call.usage_available for call in report.call_costs] == [True, False]
+
+    def test_04_unit_02_cost_02_report_07_complete_when_usage_reported(
+        self,
+    ) -> None:
+        # Arrange — a measured zero-token call is still a measurement
+        ledger = TokenLedger()
+        _record_model_call(ledger, input_tokens=0, output_tokens=0, request_id="r1")
+        calculator = CostCalculator(pricing=TEST_PRICING)
+
+        # Act
+        report = calculator.compute_report(ledger)
+
+        # Assert
+        assert report.is_complete is True
+        assert report.call_costs[0].usage_available is True
+
     def test_04_unit_02_cost_02_report_05_empty_ledger(self) -> None:
         # Arrange
         ledger = TokenLedger()

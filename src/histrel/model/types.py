@@ -111,6 +111,9 @@ class Usage(BaseModel):
         maximum_context (int): Largest input token count among the LLM
             calls covered by this record; 0 when unknown. For per-call
             records the call's ``input`` is the context, so this stays 0.
+        available (bool): Whether the provider reported this usage. False
+            means the token counts are placeholders, not measurements, so
+            the call's cost is unknown rather than zero. Defaults to True.
     """
 
     input: int = 0
@@ -119,6 +122,7 @@ class Usage(BaseModel):
     total: int = 0
     cached: int = 0
     maximum_context: int = 0
+    available: bool = True
 
 
 class ModelResponse(BaseModel):

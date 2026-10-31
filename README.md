@@ -44,7 +44,7 @@ Histrel is split into two applications that share one package:
 - **Single reasoning state.** In `stateless` mode (the default) the agent does
   not replay a growing chat transcript. Each iteration renders one fresh user
   message containing the task, the recent observations, and the current
-  repository state, so the prompt is bounded by design rather than by luck.
+  repository state.
   `react` mode is retained as a baseline that replays the full history.
 - **Duplicate-call guard.** Repeated reads, directory listings, and searches are
   detected against filesystem snapshots (path keys plus content digests) within

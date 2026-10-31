@@ -105,6 +105,7 @@ def map_usage(usage: Usage) -> Usage:
         reasoning=usage.reasoning,
         total=usage.input + usage.output,
         cached=usage.cached,
+        available=usage.available,
     )
 
 
@@ -321,8 +322,10 @@ class OpenAICompatAdapter:
     def _finalize_response(self, accumulated: _StreamAccumulation) -> ModelResponse:
         """Finalize accumulated stream state into a ModelResponse.
 
-        Substitutes an interrupted finish reason and empty usage when the
-        stream ended without them, logging a warning in each case.
+        Substitutes an interrupted finish reason and empty, unavailable
+        usage when the stream ended without them, logging a warning in each
+        case. Marking that usage unavailable keeps the zeros from reading as a
+        measured zero-token call.
 
         Args:
             accumulated (_StreamAccumulation): Accumulated streaming state.
@@ -337,7 +340,7 @@ class OpenAICompatAdapter:
 
         usage = accumulated.usage
         if usage is None:
-            usage = Usage()
+            usage = Usage(available=False)
             self._log.warning("stream_ended_without_usage")
 
         return ModelResponse(

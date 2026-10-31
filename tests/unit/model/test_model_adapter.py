@@ -27,6 +27,7 @@ from histrel.model.types import (
     Usage,
 )
 from tests.unit.factories import build_agent_config
+from tests.unit.model.helpers import FakeCompletionsClient
 
 
 @pytest.mark.parametrize(
@@ -82,6 +83,61 @@ class Test04Unit01Model01UsageMapping:
 
 class Test04Unit02Model02UsageValidation:
     """Usage normalization edge cases and validation."""
+
+    def test_04_unit_02_model_02_usage_03_preserves_unavailable_flag(
+        self,
+    ) -> None:
+        # Act
+        result = map_usage(Usage(available=False))
+
+        # Assert
+        assert result.available is False
+        assert result.total == 0
+
+
+class Test04Unit02Model02StreamUsageGuard:
+    """A stream that ends without usage must not look measured."""
+
+    def test_04_unit_02_model_02_streamusage_01_marks_usage_unavailable(
+        self,
+    ) -> None:
+        # Arrange — the provider sends no usage chunk at all
+        adapter = OpenAICompatAdapter(
+            client=FakeCompletionsClient(with_usage=False),  # type: ignore[arg-type]
+            model_name="gpt-4o",
+            provider="fireworks",
+        )
+        request = ModelRequest(
+            messages=(ProviderMessage(role="user", content="hello"),),
+        )
+
+        # Act
+        response = adapter.complete(request)
+
+        # Assert
+        assert response.usage.available is False
+        assert response.usage.input == 0
+        assert response.usage.total == 0
+
+    def test_04_unit_02_model_02_streamusage_02_keeps_measured_usage(
+        self,
+    ) -> None:
+        # Arrange
+        adapter = OpenAICompatAdapter(
+            client=FakeCompletionsClient(),  # type: ignore[arg-type]
+            model_name="gpt-4o",
+            provider="fireworks",
+        )
+        request = ModelRequest(
+            messages=(ProviderMessage(role="user", content="hello"),),
+        )
+
+        # Act
+        response = adapter.complete(request)
+
+        # Assert
+        assert response.usage.available is True
+        assert response.usage.input == 10
 
     def test_04_unit_02_model_02_usage_01_cached_greater_than_input_fails(
         self,

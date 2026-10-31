@@ -73,11 +73,13 @@ def edit_block(search: str, replace: str) -> str:
     )
 
 
-def make_stream_chunk() -> Any:
+def make_stream_chunk(*, with_usage: bool = True) -> Any:
     """Build one streaming chunk sufficient for complete() aggregation."""
     return SimpleNamespace(
         id="resp-1",
-        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+        if with_usage
+        else None,
         choices=[
             SimpleNamespace(
                 delta=SimpleNamespace(content="ok", tool_calls=None),
@@ -94,13 +96,14 @@ class FakeCompletionsClient:
     response without any network access.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, with_usage: bool = True) -> None:
         self.captured_kwargs: dict[str, Any] = {}
+        self._chunk = make_stream_chunk(with_usage=with_usage)
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     def _create(self, **kwargs: Any) -> Any:
         self.captured_kwargs.update(kwargs)
-        return iter((make_stream_chunk(),))
+        return iter((self._chunk,))
 
 
 class FlakyCompletionsClient:

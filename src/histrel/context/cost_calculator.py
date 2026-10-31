@@ -386,6 +386,8 @@ class CallCost(BaseModel):
         cached_tokens (int): Cached tokens.
         reasoning_tokens (int): Reasoning tokens.
         cost_usd (float): Cost in USD.
+        usage_available (bool): Whether the provider reported this call's
+            usage; False marks the cost unknown, not zero.
     """
 
     provider_request_id: str | None
@@ -395,6 +397,7 @@ class CallCost(BaseModel):
     cached_tokens: int
     reasoning_tokens: int
     cost_usd: float
+    usage_available: bool = True
 
 
 class CostReport(BaseModel):
@@ -408,7 +411,8 @@ class CostReport(BaseModel):
         compaction_cost (float | None): Cost from compaction calls only,
             or None when unavailable.
         call_costs (list[CallCost]): Per-call cost breakdowns.
-        is_complete (bool): Whether cost accounting is complete.
+        is_complete (bool): Whether cost accounting is complete. False when
+            pricing is unavailable or when any call reported no usage.
     """
 
     total_cost: float | None = None
@@ -455,6 +459,7 @@ def _make_call_cost(entry: LedgerEntry, pricing: ModelPricing) -> CallCost:
         cached_tokens=usage.cached,
         reasoning_tokens=usage.reasoning,
         cost_usd=_usage_cost_usd(usage, pricing),
+        usage_available=usage.available,
     )
 
 
@@ -495,6 +500,7 @@ class CostCalculator:
             cached_tokens=usage.cached,
             reasoning_tokens=usage.reasoning,
             cost_usd=_usage_cost_usd(usage, self._pricing),
+            usage_available=usage.available,
         )
 
     def compute_report(self, ledger: TokenLedger) -> CostReport:
@@ -505,7 +511,8 @@ class CostCalculator:
 
         Returns:
             (CostReport) Aggregated cost report. Costs are None when
-            pricing is unavailable: unknown cost must not read as free.
+            pricing is unavailable: unknown cost must not read as free. A
+            call without reported usage still marks the report incomplete.
         """
         if self._pricing is None:
             return CostReport(
@@ -531,5 +538,5 @@ class CostCalculator:
             model_cost=model_cost,
             compaction_cost=compaction_cost,
             call_costs=call_costs,
-            is_complete=True,
+            is_complete=all(cost.usage_available for cost in call_costs),
         )
