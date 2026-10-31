@@ -1,0 +1,3 @@
+[submodule "benchmark/vendor/SWE-bench"]
+	path = benchmark/vendor/SWE-bench
+	url = https://github.com/SWE-bench/SWE-bench.git
