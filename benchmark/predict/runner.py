@@ -54,6 +54,7 @@ def _empty_usage_accumulator() -> dict[str, int | float]:
         "tokens_cache_write": 0,
         "tokens_total": 0,
         "cost_total": 0.0,
+        "cost_complete": True,
         "cost_unknown_instances": 0,
         "maximum_context": 0,
     }

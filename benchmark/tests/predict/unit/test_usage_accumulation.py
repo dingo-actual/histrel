@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from benchmark.predict.runner import _empty_usage_accumulator
 from benchmark.predict.types import (
     SessionUsage,
     UsageData,
@@ -21,23 +22,12 @@ from benchmark.predict.types import (
 )
 from benchmark.predict.usage_helpers import accumulate_usage
 
-_EMPTY_ACCUMULATOR: dict[str, int | float] = {
-    "tokens_input": 0,
-    "tokens_output": 0,
-    "tokens_cache_read": 0,
-    "tokens_cache_write": 0,
-    "tokens_total": 0,
-    "cost_total": 0.0,
-    "cost_unknown_instances": 0,
-    "maximum_context": 0,
-}
-
 
 def _make_session_usage() -> SessionUsage:
     return {
         "session_id": None,
-        "none": dict(_EMPTY_ACCUMULATOR),
-        "total": dict(_EMPTY_ACCUMULATOR),
+        "none": _empty_usage_accumulator(),
+        "total": _empty_usage_accumulator(),
     }
 
 
@@ -182,6 +172,7 @@ class Test04Unit02UsageAccumulation02Cost:
         total = _read_accumulator(session_usage, "total")
         assert total["cost_total"] == pytest.approx(0.02)
         assert total["cost_unknown_instances"] == 1
+        assert total["cost_complete"] is False
         assert total["tokens_total"] == 500
         assert total["maximum_context"] == 200
 
@@ -215,6 +206,67 @@ class Test04Unit02UsageAccumulation02Cost:
         assert total["cost_total"] == pytest.approx(0.0125)
         assert total["tokens_total"] == 500
         assert total["maximum_context"] == 200
+
+    def test_partial_cost_keeps_charges_but_stays_incomplete(self):
+        # An explicitly incomplete record still reported charges for the
+        # calls it could price. Keep the money, lose the completeness.
+        session_usage = _make_session_usage()
+        partial: UsageData = {
+            "total": {
+                "session_id": "s1",
+                "tokens_input": 100,
+                "tokens_output": 40,
+                "tokens_total": 140,
+                "cost_total": 0.01,
+                "cost_complete": False,
+                "maximum_context": 100,
+            }
+        }
+
+        accumulate_usage(session_usage, partial)
+
+        total = _read_accumulator(session_usage, "total")
+        assert total["cost_total"] == pytest.approx(0.01)
+        assert total["cost_complete"] is False
+        assert total["cost_unknown_instances"] == 0
+
+    def test_complete_costs_leave_total_complete(self):
+        session_usage = _make_session_usage()
+        complete: UsageData = {
+            "total": {
+                "session_id": "s1",
+                "tokens_input": 100,
+                "tokens_output": 40,
+                "tokens_total": 140,
+                "cost_total": 0.01,
+                "cost_complete": True,
+                "maximum_context": 100,
+            }
+        }
+
+        accumulate_usage(session_usage, complete)
+
+        total = _read_accumulator(session_usage, "total")
+        assert total["cost_total"] == pytest.approx(0.01)
+        assert total["cost_complete"] is True
+
+    def test_incomplete_record_taints_later_complete_total(self):
+        # Completeness is sticky: a later complete record must not relabel an
+        # earlier partial total as complete.
+        session_usage = _make_session_usage()
+        partial: UsageData = {
+            "total": {"tokens_total": 140, "cost_total": 0.01, "cost_complete": False}
+        }
+        complete: UsageData = {
+            "total": {"tokens_total": 360, "cost_total": 0.02, "cost_complete": True}
+        }
+
+        accumulate_usage(session_usage, complete)
+        accumulate_usage(session_usage, partial)
+
+        total = _read_accumulator(session_usage, "total")
+        assert total["cost_total"] == pytest.approx(0.03)
+        assert total["cost_complete"] is False
 
 
 class Test04Unit03UsageAccumulation03PerToolKeys:

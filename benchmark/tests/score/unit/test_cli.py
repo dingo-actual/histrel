@@ -406,7 +406,7 @@ class Test04Unit09ScoreCli03Defaults:
         assert aggregate["coverage"]["missing_instances"] == ["inst-2"]
         assert aggregate["instances"]["inst-2"]["runs"] == 1
 
-    def test_04_unit_09_score_cli_03_defaults_06_flags_unexpected_instances(
+    def test_04_unit_09_score_cli_03_defaults_06_rejects_unexpected_instances(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         # Arrange — a report that graded something outside the run
@@ -417,8 +417,8 @@ class Test04Unit09ScoreCli03Defaults:
         _fake_run(monkeypatch, calls)
 
         # Act
-        cli.main([str(run_root)])
+        exit_code = cli.main([str(run_root)])
 
-        # Assert
-        aggregate = read_json(run_root / RESOLUTION_FILE_NAME)
-        assert aggregate["coverage"]["unexpected_instances"] == ["inst-9"]
+        # Assert — no scores are computed from the rejected report
+        assert exit_code == 1
+        assert not (run_root / RESOLUTION_FILE_NAME).exists()

@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from benchmark.common.io import read_json, write_json
 from benchmark.predict.repeat import repeat_dir_name
 from benchmark.predict.resolution import (
@@ -151,21 +153,17 @@ class Test04Unit08Resolution01Summary:
             "scheduled_attempts": 2,
             "missing_coverage": [{"instance_id": "b", "repetition": 1}],
             "missing_instances": ["b"],
-            "unexpected_instances": [],
         }
 
-    def test_04_unit_08_resolution_01_summary_06_flags_extra_instances(
+    def test_04_unit_08_resolution_01_summary_06_rejects_extra_instances(
         self,
     ) -> None:
-        # Arrange
+        # Arrange — the report resolved an instance the run never intended
         reports = [("run-repeat-01", _report(2, ["a", "z"], []))]
 
-        # Act
-        summary = summarize_resolution(reports, ["a"])
-
-        # Assert
-        assert summary["coverage"]["unexpected_instances"] == ["z"]
-        assert summary["per_repetition"][0]["resolve_rate"] == 1.0
+        # Act / Assert
+        with pytest.raises(ValueError, match="z"):
+            summarize_resolution(reports, ["a"])
 
     def test_04_unit_08_resolution_01_summary_07_rate_over_scheduled_repetitions(
         self,
@@ -342,3 +340,17 @@ class Test04Unit08Resolution02Aggregate:
         assert written["coverage"]["missing_coverage"] == [
             {"instance_id": "a", "repetition": 2}
         ]
+
+    def test_04_unit_08_resolution_02_aggregate_08_rejects_unexpected(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the report resolved an instance the run never intended
+        run_root = tmp_path / "my-run"
+        (run_root / repeat_dir_name(1)).mkdir(parents=True)
+        _write_metadata(run_root, ["a"])
+        _write_reports(run_root, {1: _report(2, ["a", "z"], [])})
+
+        # Act / Assert — no aggregate is written from a rejected report
+        with pytest.raises(ValueError, match="z"):
+            aggregate_resolution(run_root)
+        assert not (run_root / RESOLUTION_FILE_NAME).exists()

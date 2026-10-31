@@ -54,6 +54,9 @@ def accumulate_usage(session_usage: SessionUsage, instance_usage: UsageData) -> 
     values from instance_usage. For maximum_context, uses max() instead
     of addition. Instances with an unknown cost are counted in
     ``cost_unknown_instances`` instead of being folded into ``cost_total``.
+    A record marked ``cost_complete: False`` keeps its known charges in
+    ``cost_total`` but flips the accumulator's own ``cost_complete`` to
+    False, so the total is reported as partial.
 
     Args:
         session_usage (SessionUsage): The session usage structure to update.
@@ -71,8 +74,13 @@ def accumulate_usage(session_usage: SessionUsage, instance_usage: UsageData) -> 
             target_record["cost_unknown_instances"] = (
                 target_record.get("cost_unknown_instances", 0) + 1
             )
+            target_record["cost_complete"] = False
         else:
             target_record["cost_total"] = target_record.get("cost_total", 0.0) + cost
+            # A partial cost keeps its known charges, but the session total
+            # must not look complete.
+            if record_raw.get("cost_complete") is not True:
+                target_record["cost_complete"] = False
         for field, value in record_raw.items():
             if field in {"session_id", "cost_complete", "cost_total"}:
                 continue

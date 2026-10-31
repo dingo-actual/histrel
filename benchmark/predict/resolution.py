@@ -17,6 +17,9 @@ with the repetition directories.
 The merged ``bench_agent_predictions.jsonl`` at the run root is an analysis
 artifact only; it is not a grading input.
 
+A report that graded instances outside the run's intended set is rejected:
+scoring it would count foreign resolutions, so no aggregate is written.
+
     Important Functions:
         repeat_eval_run_id(run_name: str, index: int) -> str
         summarize_resolution(reports, instance_ids) -> dict
@@ -194,8 +197,12 @@ def summarize_resolution(
         (dict[str, Any]) Per-repetition counts, resolve-rate statistics across
         repetitions, per-instance resolution counts over the scheduled
         repetitions, and coverage of the intended set.
+
+    Raises:
+        ValueError: If a report mentions an instance outside the intended set.
     """
     intended = {str(instance_id) for instance_id in instance_ids or []}
+    _reject_unexpected(reports, intended)
     scheduled = repetitions if repetitions is not None else len(reports)
     per_repetition = [
         _per_repetition(_repetition_of(run_id), run_id, report, intended)
@@ -243,6 +250,43 @@ def summarize_resolution(
     }
 
 
+def _reject_unexpected(
+    reports: Sequence[tuple[str, Mapping[str, Any]]], intended: set[str]
+) -> None:
+    """Reject any report that graded instances outside the intended set.
+
+    Scoring such a report would add foreign resolutions to the numerator
+    while the denominator only holds the intended instances, so no score is
+    computed at all.
+
+    Args:
+        reports (Sequence[tuple[str, Mapping[str, Any]]]): Pairs of evaluation
+            run ID and report.
+        intended (set[str]): Instance IDs the run intended to grade. An empty
+            set cannot prove a report wrong, so nothing is rejected.
+
+    Raises:
+        ValueError: If a report mentions an instance outside ``intended``.
+    """
+    for run_id, report in reports:
+        unexpected = sorted(_report_instances(report) - intended)
+        if not intended or not unexpected:
+            continue
+        logger.bind(
+            component="benchmark.predict.resolution",
+            origin="bench_harness_predict",
+            event="repeat.coverage_mismatch",
+        ).error(
+            "Rejected resolution report outside the run",
+            run_id=run_id,
+            unexpected_instances=unexpected,
+            intended_instances=len(intended),
+        )
+        raise ValueError(
+            f"Report {run_id} graded instances outside the run: {', '.join(unexpected)}"
+        )
+
+
 def _coverage(
     reports: Sequence[tuple[str, Mapping[str, Any]]],
     intended: set[str],
@@ -262,8 +306,7 @@ def _coverage(
 
     Returns:
         (dict[str, Any]) Intended count, scheduled attempt count, the missing
-        pairs, the instances with at least one missing repetition, and IDs
-        graded outside the intended set.
+        pairs, and the instances with at least one missing repetition.
     """
     covered: set[tuple[str, int]] = set()
     for run_id, report in reports:
@@ -277,17 +320,6 @@ def _coverage(
         for repetition in range(1, scheduled + 1)
     }
     missing = sorted(expected - covered)
-    unexpected = sorted({instance_id for instance_id, _ in covered} - intended)
-    if unexpected:
-        logger.bind(
-            component="benchmark.predict.resolution",
-            origin="bench_harness_predict",
-            event="repeat.coverage_mismatch",
-        ).error(
-            "Resolution report covers instances outside the run",
-            unexpected_instances=unexpected,
-            intended_instances=len(intended),
-        )
     return {
         "intended_instances": len(intended),
         "scheduled_attempts": len(expected),
@@ -296,7 +328,6 @@ def _coverage(
             for instance_id, repetition in missing
         ],
         "missing_instances": sorted({instance_id for instance_id, _ in missing}),
-        "unexpected_instances": unexpected,
     }
 
 

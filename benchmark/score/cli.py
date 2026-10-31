@@ -292,7 +292,8 @@ def main(argv: list[str] | None = None) -> int:
             which uses ``sys.argv``.
 
     Returns:
-        (int) 0 when every repetition was graded, 1 otherwise.
+        (int) 0 when every repetition was graded and its report was accepted,
+        1 otherwise.
     """
     args = build_parser().parse_args(argv)
     run_root = Path(args.run_root).resolve()
@@ -342,7 +343,13 @@ def main(argv: list[str] | None = None) -> int:
         ):
             graded += 1
 
-    aggregate_resolution(run_root)
+    try:
+        aggregate_resolution(run_root)
+    except ValueError as exc:
+        logger.bind(**_LOG).error(
+            "Rejected resolution report; no scores computed", error=str(exc)
+        )
+        return 1
     return 0 if graded == len(indices) else 1
 
 
