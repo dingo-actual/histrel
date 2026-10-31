@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -31,6 +32,10 @@ from loguru import logger
 
 #: Fallback dataset when the run wrote no metadata.
 DEFAULT_DATASET_NAME = "princeton-nlp/SWE-bench_Verified"
+
+#: Where the SWE-bench harness caches per-run evaluation output, relative to
+#: the evaluation working directory (the run root).
+EVAL_LOG_DIR = Path("logs") / "run_evaluation"
 
 _LOG = dict(component="benchmark.score.cli", origin="bench_harness_score")
 
@@ -69,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Re-grade repetitions whose report already exists.",
+        help="Discard cached evaluation results and re-grade every repetition.",
     )
     return parser
 
@@ -158,7 +163,7 @@ def _evaluation_env() -> dict[str, str]:
         (dict[str, str]) Environment with the vendor root on ``PYTHONPATH``.
     """
     env = os.environ.copy()
-    vendor_root = Path(__file__).resolve().parents[2] / "vendor" / "SWE-bench"
+    vendor_root = Path(__file__).resolve().parents[1] / "vendor" / "SWE-bench"
     if not (vendor_root / "swebench" / "__init__.py").exists():
         return env
     existing = env.get("PYTHONPATH")
@@ -184,6 +189,35 @@ def _run_metadata(run_root: Path) -> dict[str, Any]:
     return metadata if isinstance(metadata, dict) else {}
 
 
+def invalidate_cached_evaluation(run_root: Path, run_id: str) -> None:
+    """Delete the cached evaluation results of one repetition.
+
+    SWE-bench skips an instance whose ``report.json`` already exists under
+    ``logs/run_evaluation/<run_id>/``, so a forced re-grade must remove that
+    cache directory and the resolution report written from it. Otherwise a
+    changed prediction keeps its old score.
+
+    Args:
+        run_root (Path): Run directory that holds the repetition directories
+            and the evaluation working directory.
+        run_id (str): Evaluation run ID of the repetition.
+    """
+    cache_dir = run_root / EVAL_LOG_DIR / run_id
+    removed_cache = cache_dir.exists()
+    if removed_cache:
+        shutil.rmtree(cache_dir)
+    reports = report_files(run_root, run_id)
+    for report in reports:
+        report.unlink()
+    logger.bind(**_LOG, event="score.cache.invalidated").info(
+        "Invalidated cached evaluation results",
+        run_id=run_id,
+        cache_dir=str(cache_dir),
+        removed_cache=removed_cache,
+        removed_reports=[report.name for report in reports],
+    )
+
+
 def grade_repetition(
     run_root: Path,
     index: int,
@@ -193,6 +227,7 @@ def grade_repetition(
     max_workers: int,
     timeout_seconds: int,
     instance_ids: Sequence[str] | None = None,
+    force: bool = False,
 ) -> bool:
     """Grade one repetition with the SWE-bench harness.
 
@@ -205,6 +240,8 @@ def grade_repetition(
         timeout_seconds (int): Per-instance test timeout.
         instance_ids (Sequence[str] | None): Instance IDs to grade. Defaults to
             None, which grades the whole dataset.
+        force (bool): Discard this repetition's cached evaluation results
+            before grading. Defaults to False.
 
     Returns:
         (bool) True when the evaluation finished successfully.
@@ -218,6 +255,9 @@ def grade_repetition(
             predictions_path=str(predictions_path),
         )
         return False
+
+    if force:
+        invalidate_cached_evaluation(run_root, run_id)
 
     command = evaluation_command(
         predictions_path,
@@ -298,6 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             max_workers=args.max_workers,
             timeout_seconds=args.timeout_seconds,
             instance_ids=instance_ids,
+            force=args.force,
         ):
             graded += 1
 

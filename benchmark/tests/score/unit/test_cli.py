@@ -200,7 +200,65 @@ class Test04Unit09ScoreCli02Grading:
         assert exit_code == 0
         assert len(calls) == 1
 
-    def test_04_unit_09_score_cli_02_grading_04_failed_repetition_returns_one(
+    def test_04_unit_09_score_cli_02_grading_06_force_discards_cached_results(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        # Arrange — SWE-bench skips an instance that already has a cached
+        # report, so a forced re-grade must delete that cache.
+        run_root = tmp_path / "my-run"
+        _make_run(run_root, repeats=1)
+        cached_report = (
+            run_root
+            / cli.EVAL_LOG_DIR
+            / "my-run-repeat-01"
+            / "bench-agent"
+            / "inst-1"
+            / "report.json"
+        )
+        cached_report.parent.mkdir(parents=True)
+        cached_report.write_text("{}", encoding="utf-8")
+        stale_report = _report(run_root, "my-run-repeat-01", ["inst-1"])
+        assert stale_report is not None
+        calls: list[dict[str, Any]] = []
+        _fake_run(monkeypatch, calls)
+
+        # Act
+        exit_code = cli.main([str(run_root), "--force"])
+
+        # Assert
+        assert exit_code == 0
+        assert len(calls) == 1
+        assert not cached_report.parent.exists()
+        assert not (run_root / "bench-agent.my-run-repeat-01.json").exists()
+
+    def test_04_unit_09_score_cli_02_grading_07_no_force_keeps_cached_results(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        # Arrange
+        run_root = tmp_path / "my-run"
+        _make_run(run_root, repeats=1)
+        cached_report = (
+            run_root
+            / cli.EVAL_LOG_DIR
+            / "my-run-repeat-01"
+            / "bench-agent"
+            / "inst-1"
+            / "report.json"
+        )
+        cached_report.parent.mkdir(parents=True)
+        cached_report.write_text("{}", encoding="utf-8")
+        calls: list[dict[str, Any]] = []
+        _fake_run(monkeypatch, calls)
+
+        # Act
+        exit_code = cli.main([str(run_root)])
+
+        # Assert — the repetition is graded, so its cache is untouched.
+        assert exit_code == 0
+        assert len(calls) == 1
+        assert cached_report.exists()
+
+    def test_04_unit_09_score_cli_02_grading_08_failed_repetition_returns_one(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         # Arrange
