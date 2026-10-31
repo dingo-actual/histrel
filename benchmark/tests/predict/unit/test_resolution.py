@@ -50,6 +50,18 @@ def _write_reports(run_root: Path, reports: dict[int, dict[str, Any]]) -> None:
         write_json(run_root / f"bench-agent.{run_id}.json", report)
 
 
+def _write_metadata(run_root: Path, instance_ids: list[str]) -> None:
+    """Write run metadata that records the intended instance IDs."""
+    write_json(
+        run_root / repeat_dir_name(1) / "run_metadata.json",
+        {
+            "dataset_id": "dataset/split",
+            "split": "test",
+            "instance_ids": instance_ids,
+        },
+    )
+
+
 class Test04Unit08Resolution01Summary:
     def test_04_unit_08_resolution_01_summary_01_resolve_rate_stats(self) -> None:
         # Arrange
@@ -115,6 +127,43 @@ class Test04Unit08Resolution01Summary:
         assert summary["repetitions"] == 0
         assert summary["resolve_rate"]["count"] == 0
         assert summary["instances"] == {}
+
+    def test_04_unit_08_resolution_01_summary_05_intended_set_is_denominator(
+        self,
+    ) -> None:
+        # Arrange — the report totals the whole dataset of 5 while the run
+        # intended 2 instances and never predicted the second one
+        reports = [("run-repeat-01", _report(5, ["a"], []))]
+
+        # Act
+        summary = summarize_resolution(reports, ["a", "b"])
+
+        # Assert
+        assert summary["per_repetition"][0]["total_instances"] == 2
+        assert summary["per_repetition"][0]["resolve_rate"] == 0.5
+        assert summary["instances"]["b"] == {
+            "runs": 0,
+            "resolved": 0,
+            "resolve_rate": 0.0,
+        }
+        assert summary["coverage"] == {
+            "intended_instances": 2,
+            "missing_instances": ["b"],
+            "unexpected_instances": [],
+        }
+
+    def test_04_unit_08_resolution_01_summary_06_flags_extra_instances(
+        self,
+    ) -> None:
+        # Arrange
+        reports = [("run-repeat-01", _report(2, ["a", "z"], []))]
+
+        # Act
+        summary = summarize_resolution(reports, ["a"])
+
+        # Assert
+        assert summary["coverage"]["unexpected_instances"] == ["z"]
+        assert summary["per_repetition"][0]["resolve_rate"] == 1.0
 
 
 class Test04Unit08Resolution02Aggregate:
@@ -213,3 +262,20 @@ class Test04Unit08Resolution02Aggregate:
 
         # Assert
         assert read_json(path)["instances"]["a"]["resolved"] == 1
+
+    def test_04_unit_08_resolution_02_aggregate_06_uses_metadata_instance_ids(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — the report totals the whole dataset and skipped "b"
+        run_root = tmp_path / "my-run"
+        (run_root / repeat_dir_name(1)).mkdir(parents=True)
+        _write_metadata(run_root, ["a", "b"])
+        _write_reports(run_root, {1: _report(5, ["a"], [])})
+
+        # Act
+        path = aggregate_resolution(run_root)
+
+        # Assert
+        written = read_json(path)
+        assert written["per_repetition"][0]["resolve_rate"] == 0.5
+        assert written["coverage"]["missing_instances"] == ["b"]

@@ -23,6 +23,7 @@ def _make_run(
     *,
     dataset_id: str = "dataset/split",
     split: str = "test",
+    instance_ids: list[str] | None = None,
 ) -> None:
     """Create a repeated run with predictions and run metadata."""
     for index in range(1, repeats + 1):
@@ -40,22 +41,36 @@ def _make_run(
         )
     write_json(
         run_root / repeat_dir_name(1) / "run_metadata.json",
-        {"dataset_id": dataset_id, "split": split},
+        {
+            "dataset_id": dataset_id,
+            "split": split,
+            "instance_ids": instance_ids or ["inst-1", "inst-2"],
+        },
     )
 
 
-def _report(run_root: Path, run_id: str, resolved: list[str]) -> dict[str, Any]:
+def _report(
+    run_root: Path,
+    run_id: str,
+    resolved: list[str],
+    *,
+    total: int = 2,
+    submitted: list[str] | None = None,
+) -> dict[str, Any]:
     """Write a SWE-bench resolution report and return it."""
+    submitted_ids = submitted if submitted is not None else ["inst-1", "inst-2"]
     report = {
-        "total_instances": 2,
-        "submitted_instances": 2,
+        "total_instances": total,
+        "submitted_instances": len(submitted_ids),
         "resolved_instances": len(resolved),
-        "unresolved_instances": 2 - len(resolved),
+        "unresolved_instances": len(submitted_ids) - len(resolved),
         "empty_patch_instances": 0,
         "error_instances": 0,
-        "submitted_ids": ["inst-1", "inst-2"],
+        "submitted_ids": submitted_ids,
         "resolved_ids": resolved,
-        "unresolved_ids": ["inst-1", "inst-2"] if not resolved else ["inst-1"],
+        "unresolved_ids": [
+            instance_id for instance_id in submitted_ids if instance_id not in resolved
+        ],
         "empty_patch_ids": [],
         "error_ids": [],
         "schema_version": 2,
@@ -100,6 +115,28 @@ class Test04Unit09ScoreCli01Command:
         assert command[command.index("--split") + 1] == "test"
         assert command[command.index("--max_workers") + 1] == "3"
         assert command[command.index("--timeout") + 1] == "900"
+        assert "--instance_ids" not in command
+
+    def test_04_unit_09_score_cli_01_command_02_instance_ids(
+        self, tmp_path: Path
+    ) -> None:
+        # Arrange — a subset run must grade only its own instances
+        predictions = tmp_path / "repeat_01" / PREDICTIONS_FILE_NAME
+
+        # Act
+        command = cli.evaluation_command(
+            predictions,
+            "my-run-repeat-01",
+            "ds",
+            "test",
+            3,
+            900,
+            ["inst-a", "inst-b"],
+        )
+
+        # Assert
+        index = command.index("--instance_ids")
+        assert command[index + 1 :] == ["inst-a", "inst-b"]
 
 
 class Test04Unit09ScoreCli02Grading:
@@ -264,3 +301,66 @@ class Test04Unit09ScoreCli03Defaults:
         aggregate = read_json(run_root / RESOLUTION_FILE_NAME)
         assert aggregate["repetitions"] == 2
         assert aggregate["resolve_rate"]["mean"] == 0.25
+
+    def test_04_unit_09_score_cli_03_defaults_04_grades_metadata_instance_ids(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        # Arrange — a subset run must ask SWE-bench for its own instances
+        run_root = tmp_path / "my-run"
+        _make_run(run_root, repeats=1, instance_ids=["inst-a", "inst-b"])
+        calls: list[dict[str, Any]] = []
+        _fake_run(monkeypatch, calls)
+
+        # Act
+        cli.main([str(run_root)])
+
+        # Assert
+        command = calls[0]["command"]
+        index = command.index("--instance_ids")
+        assert command[index + 1 :] == ["inst-a", "inst-b"]
+
+    def test_04_unit_09_score_cli_03_defaults_05_denominator_is_intended_set(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        # Arrange — the report totals the whole dataset (5) while the run
+        # intended 2 instances and one of them was never predicted
+        run_root = tmp_path / "my-run"
+        _make_run(run_root, repeats=1, instance_ids=["inst-1", "inst-2"])
+        _report(
+            run_root,
+            "my-run-repeat-01",
+            ["inst-1"],
+            total=5,
+            submitted=["inst-1"],
+        )
+        calls: list[dict[str, Any]] = []
+        _fake_run(monkeypatch, calls)
+
+        # Act
+        exit_code = cli.main([str(run_root)])
+
+        # Assert — one of two intended instances resolved, not one of five
+        assert exit_code == 0
+        aggregate = read_json(run_root / RESOLUTION_FILE_NAME)
+        assert aggregate["per_repetition"][0]["total_instances"] == 2
+        assert aggregate["per_repetition"][0]["resolve_rate"] == 0.5
+        assert aggregate["coverage"]["intended_instances"] == 2
+        assert aggregate["coverage"]["missing_instances"] == ["inst-2"]
+        assert aggregate["instances"]["inst-2"]["runs"] == 0
+
+    def test_04_unit_09_score_cli_03_defaults_06_flags_unexpected_instances(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        # Arrange — a report that graded something outside the run
+        run_root = tmp_path / "my-run"
+        _make_run(run_root, repeats=1, instance_ids=["inst-1"])
+        _report(run_root, "my-run-repeat-01", ["inst-9"], submitted=["inst-9"])
+        calls: list[dict[str, Any]] = []
+        _fake_run(monkeypatch, calls)
+
+        # Act
+        cli.main([str(run_root)])
+
+        # Assert
+        aggregate = read_json(run_root / RESOLUTION_FILE_NAME)
+        assert aggregate["coverage"]["unexpected_instances"] == ["inst-9"]

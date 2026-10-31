@@ -20,6 +20,7 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +107,7 @@ def evaluation_command(
     split: str,
     max_workers: int,
     timeout_seconds: int,
+    instance_ids: Sequence[str] | None = None,
 ) -> list[str]:
     """Build the SWE-bench evaluation command of one repetition.
 
@@ -116,11 +118,15 @@ def evaluation_command(
         split (str): Dataset split.
         max_workers (int): Parallel evaluation workers.
         timeout_seconds (int): Per-instance test timeout.
+        instance_ids (Sequence[str] | None): Instance IDs to grade. SWE-bench
+            reports the dataset filtered by these IDs as ``total_instances``,
+            so passing the run's IDs keeps the denominator at the intended
+            subset instead of the whole dataset. Defaults to None.
 
     Returns:
         (list[str]) Command to run the SWE-bench harness.
     """
-    return [
+    command = [
         sys.executable,
         "-m",
         "swebench.harness.run_evaluation",
@@ -137,6 +143,9 @@ def evaluation_command(
         "--timeout",
         str(timeout_seconds),
     ]
+    if instance_ids:
+        command.extend(["--instance_ids", *instance_ids])
+    return command
 
 
 def _evaluation_env() -> dict[str, str]:
@@ -183,6 +192,7 @@ def grade_repetition(
     split: str,
     max_workers: int,
     timeout_seconds: int,
+    instance_ids: Sequence[str] | None = None,
 ) -> bool:
     """Grade one repetition with the SWE-bench harness.
 
@@ -193,6 +203,8 @@ def grade_repetition(
         split (str): Dataset split.
         max_workers (int): Parallel evaluation workers.
         timeout_seconds (int): Per-instance test timeout.
+        instance_ids (Sequence[str] | None): Instance IDs to grade. Defaults to
+            None, which grades the whole dataset.
 
     Returns:
         (bool) True when the evaluation finished successfully.
@@ -214,6 +226,7 @@ def grade_repetition(
         split,
         max_workers,
         timeout_seconds,
+        instance_ids,
     )
     logger.bind(**_LOG).info(
         "Grading repetition", run_id=run_id, command=" ".join(command)
@@ -255,6 +268,20 @@ def main(argv: list[str] | None = None) -> int:
         args.dataset_name or metadata.get("dataset_id") or DEFAULT_DATASET_NAME
     )
     split = args.split or metadata.get("split") or "test"
+    # Grade the same subset the run intended: without these IDs SWE-bench
+    # reports the whole dataset as total_instances and the resolve rate is
+    # divided by the wrong denominator.
+    recorded_ids = metadata.get("instance_ids")
+    instance_ids = (
+        [str(instance_id) for instance_id in recorded_ids]
+        if isinstance(recorded_ids, list) and recorded_ids
+        else None
+    )
+    if instance_ids is None:
+        logger.bind(**_LOG).warning(
+            "Run metadata holds no instance IDs; grading the whole dataset",
+            run_root=str(run_root),
+        )
 
     graded = 0
     for index in indices:
@@ -270,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
             split=split,
             max_workers=args.max_workers,
             timeout_seconds=args.timeout_seconds,
+            instance_ids=instance_ids,
         ):
             graded += 1
 

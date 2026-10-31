@@ -19,7 +19,7 @@ artifact only; it is not a grading input.
 
     Important Functions:
         repeat_eval_run_id(run_name: str, index: int) -> str
-        summarize_resolution(reports: Sequence[tuple[str, Mapping]]) -> dict
+        summarize_resolution(reports, instance_ids) -> dict
         aggregate_resolution(run_root: Path) -> Path
 """
 
@@ -27,11 +27,12 @@ from __future__ import annotations
 
 import argparse
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from benchmark.common.io import read_json, write_json
+from benchmark.predict.repeat import repeat_dir_name
 from loguru import logger
 
 #: Aggregate resolution file written at the run root.
@@ -97,6 +98,26 @@ def _report_instances(report: Mapping[str, Any]) -> set[str]:
     return mentioned
 
 
+def _intended_instance_ids(run_root: Path) -> set[str]:
+    """Return the instance IDs the run intended to grade.
+
+    Args:
+        run_root (Path): Run directory that holds the repetition directories.
+
+    Returns:
+        (set[str]) IDs recorded in the first repetition's run metadata; empty
+        when the metadata is missing or holds no IDs.
+    """
+    path = run_root / repeat_dir_name(1) / "run_metadata.json"
+    if not path.exists():
+        return set()
+    metadata = read_json(path)
+    ids = metadata.get("instance_ids") if isinstance(metadata, dict) else None
+    if not isinstance(ids, list):
+        return set()
+    return {str(instance_id) for instance_id in ids}
+
+
 def _resolve_rate(resolved: int, total: int) -> float:
     """Return the resolve rate of one evaluation run."""
     return round(resolved / total, 4) if total else 0.0
@@ -109,7 +130,10 @@ def _repetition_of(run_id: str) -> int:
 
 
 def _per_repetition(
-    index: int, run_id: str, report: Mapping[str, Any]
+    index: int,
+    run_id: str,
+    report: Mapping[str, Any],
+    intended: Collection[str] = (),
 ) -> dict[str, Any]:
     """Summarize one repetition's resolution report.
 
@@ -117,12 +141,18 @@ def _per_repetition(
         index (int): 1-based repetition index.
         run_id (str): Evaluation run ID of the repetition.
         report (Mapping[str, Any]): SWE-bench resolution report.
+        intended (Collection[str]): Instance IDs the run intended to grade.
+            Defaults to empty, which uses the report total.
 
     Returns:
         (dict[str, Any]) Counts and resolve rate of that repetition.
     """
     resolved = len(report.get("resolved_ids", []))
-    total = int(report.get("total_instances", 0))
+    # Grade the intended set: an instance without a prediction, or with a
+    # failed attempt, still counts against the run. Fall back to the report
+    # total when no metadata records the intended IDs.
+    graded = set(intended) | _report_instances(report)
+    total = len(graded) if graded else int(report.get("total_instances", 0))
     return {
         "repetition": index,
         "run_id": run_id,
@@ -137,29 +167,45 @@ def _per_repetition(
 
 def summarize_resolution(
     reports: Sequence[tuple[str, Mapping[str, Any]]],
+    instance_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Summarize the resolution reports of every graded repetition.
+
+    When the intended instance IDs are known, they bound the denominator of
+    every repetition: an instance without a prediction, or with a failed
+    attempt, still counts against the run. The reports are checked against
+    that set so a report graded over a wider dataset cannot inflate the
+    rates.
 
     Args:
         reports (Sequence[tuple[str, Mapping[str, Any]]]): Pairs of evaluation
             run ID and report, in repetition order.
+        instance_ids (Sequence[str] | None): Instance IDs the run intended to
+            grade. Defaults to None, which trusts each report's own total.
 
     Returns:
         (dict[str, Any]) Per-repetition counts, resolve-rate statistics across
-        repetitions, and per-instance resolution counts.
+        repetitions, per-instance resolution counts, and coverage of the
+        intended set.
     """
+    intended = {str(instance_id) for instance_id in instance_ids or []}
     per_repetition = [
-        _per_repetition(_repetition_of(run_id), run_id, report)
+        _per_repetition(_repetition_of(run_id), run_id, report, intended)
         for run_id, report in reports
     ]
     rates = [entry["resolve_rate"] for entry in per_repetition]
-    instance_runs: dict[str, int] = {}
+    # Seed the intended IDs so an instance without a prediction or with a
+    # failed attempt is reported with zero resolutions instead of vanishing.
+    instance_runs: dict[str, int] = dict.fromkeys(sorted(intended), 0)
     instance_resolved: dict[str, int] = {}
+    covered: set[str] = set()
     for _run_id, report in reports:
         resolved_ids = {
             str(instance_id) for instance_id in report.get("resolved_ids", [])
         }
-        for instance_id in _report_instances(report):
+        report_ids = _report_instances(report)
+        covered |= report_ids
+        for instance_id in report_ids:
             instance_runs[instance_id] = instance_runs.get(instance_id, 0) + 1
             if instance_id in resolved_ids:
                 instance_resolved[instance_id] = (
@@ -186,11 +232,51 @@ def summarize_resolution(
             }
             for instance_id, runs in sorted(instance_runs.items())
         },
+        "coverage": _coverage(reports, intended),
+    }
+
+
+def _coverage(
+    reports: Sequence[tuple[str, Mapping[str, Any]]], intended: set[str]
+) -> dict[str, Any]:
+    """Check that the reports cover the intended instance set.
+
+    Args:
+        reports (Sequence[tuple[str, Mapping[str, Any]]]): Pairs of evaluation
+            run ID and report.
+        intended (set[str]): Instance IDs the run intended to grade.
+
+    Returns:
+        (dict[str, Any]) Intended count, IDs no report covered (missing
+        predictions), and IDs graded outside the intended set.
+    """
+    covered: set[str] = set()
+    for _run_id, report in reports:
+        covered |= _report_instances(report)
+    unexpected = sorted(covered - intended)
+    missing = sorted(intended - covered)
+    if unexpected:
+        logger.bind(
+            component="benchmark.predict.resolution",
+            origin="bench_harness_predict",
+            event="repeat.coverage_mismatch",
+        ).error(
+            "Resolution report covers instances outside the run",
+            unexpected_instances=unexpected,
+            intended_instances=len(intended),
+        )
+    return {
+        "intended_instances": len(intended),
+        "missing_instances": missing,
+        "unexpected_instances": unexpected,
     }
 
 
 def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Path:
     """Aggregate the per-repetition resolution reports of a repeated run.
+
+    The instance IDs recorded in the run metadata are the denominator, and
+    every report is checked against them.
 
     Args:
         run_root (Path): Run directory that holds the repetition directories.
@@ -211,7 +297,8 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
             reports.append((run_id, report))
 
     path = run_root / RESOLUTION_FILE_NAME
-    write_json(path, summarize_resolution(reports))
+    intent = sorted(_intended_instance_ids(run_root))
+    write_json(path, summarize_resolution(reports, intent))
     logger.bind(
         component="benchmark.predict.resolution",
         origin="bench_harness_predict",
@@ -219,6 +306,7 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
     ).info(
         "Aggregated resolution reports",
         graded_repetitions=len(reports),
+        intended_instances=len(intent),
         path=str(path),
     )
     return path
