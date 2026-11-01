@@ -14,6 +14,7 @@ import pytest
 from benchmark.common.io import read_json, write_json
 from benchmark.predict.repeat import repeat_dir_name
 from benchmark.predict.resolution import (
+    REJECTED_AGGREGATE_FILE_NAME,
     RESOLUTION_FILE_NAME,
     aggregate_resolution,
     repeat_eval_run_id,
@@ -77,12 +78,38 @@ class Test04Unit08Resolution01Summary:
 
         # Assert
         assert summary["repetitions"] == 2
+        assert summary["reports_complete"] is True
         assert summary["per_repetition"][0]["resolve_rate"] == 0.5
         assert summary["per_repetition"][1]["resolve_rate"] == 0.25
+        assert summary["resolve_rate"]["complete"] is True
+        assert summary["resolve_rate"]["count"] == 2
         assert summary["resolve_rate"]["mean"] == 0.375
         assert summary["resolve_rate"]["median"] == 0.375
         assert summary["resolve_rate"]["min"] == 0.25
         assert summary["resolve_rate"]["max"] == 0.5
+
+    def test_04_unit_08_resolution_01_summary_09_withholds_rate_without_report(
+        self,
+    ) -> None:
+        # Arrange — repetition 2 was scheduled but its evaluation never ran,
+        # so only repetition 1 reports a rate.
+        reports = [("run-repeat-01", _report(2, ["a", "b"], []))]
+
+        # Act
+        summary = summarize_resolution(reports, ["a", "b"], 2)
+
+        # Assert — the single rate must not be summarized as the overall one
+        assert summary["reports_complete"] is False
+        assert summary["per_repetition"][0]["resolve_rate"] == 1.0
+        assert summary["instances"]["a"]["resolve_rate"] is None
+        assert summary["resolve_rate"] == {
+            "complete": False,
+            "count": 0,
+            "mean": None,
+            "median": None,
+            "min": None,
+            "max": None,
+        }
 
     def test_04_unit_08_resolution_01_summary_02_instance_counts(self) -> None:
         # Arrange
@@ -165,22 +192,22 @@ class Test04Unit08Resolution01Summary:
         with pytest.raises(ValueError, match="z"):
             summarize_resolution(reports, ["a"])
 
-    def test_04_unit_08_resolution_01_summary_07_rate_over_scheduled_repetitions(
+    def test_04_unit_08_resolution_01_summary_07_counts_survive_missing_report(
         self,
     ) -> None:
-        # Arrange — two repetitions were scheduled, but the second never
-        # produced a prediction, so its report omits the instance.
+        # Arrange — two repetitions were scheduled, but the second produced no
+        # report, so only repetition 1 observed this instance.
         reports = [("run-repeat-01", _report(1, ["a"], []))]
 
         # Act
         summary = summarize_resolution(reports, ["a"], 2)
 
-        # Assert — one success out of two scheduled attempts, not one of one.
+        # Assert — the counts are kept, the rate is withheld.
         assert summary["scheduled_repetitions"] == 2
         assert summary["instances"]["a"] == {
             "runs": 2,
             "resolved": 1,
-            "resolve_rate": 0.5,
+            "resolve_rate": None,
         }
         assert summary["coverage"]["missing_coverage"] == [
             {"instance_id": "a", "repetition": 2}
@@ -282,6 +309,9 @@ class Test04Unit08Resolution02Aggregate:
             "my-run-repeat-03",
         ]
         assert written["per_repetition"][1]["repetition"] == 3
+        # The overall rate would summarize a subset of the schedule
+        assert written["reports_complete"] is False
+        assert written["resolve_rate"]["mean"] is None
 
     def test_04_unit_08_resolution_02_aggregate_05_accepts_custom_reports_root(
         self, tmp_path: Path
@@ -319,11 +349,10 @@ class Test04Unit08Resolution02Aggregate:
         assert written["per_repetition"][0]["resolve_rate"] == 0.5
         assert written["coverage"]["missing_instances"] == ["b"]
 
-    def test_04_unit_08_resolution_02_aggregate_07_counts_ungraded_repetition(
+    def test_04_unit_08_resolution_02_aggregate_07_skips_ungraded_repetition(
         self, tmp_path: Path
     ) -> None:
-        # Arrange — repetition 2 produced no prediction, so its report never
-        # listed the instance
+        # Arrange — repetition 2 was never graded, so it has no report
         run_root = tmp_path / "my-run"
         for index in (1, 2):
             (run_root / repeat_dir_name(index)).mkdir(parents=True)
@@ -333,10 +362,14 @@ class Test04Unit08Resolution02Aggregate:
         # Act
         path = aggregate_resolution(run_root)
 
-        # Assert — one resolved attempt out of two scheduled repetitions
+        # Assert — the observation is kept, the per-instance rate is withheld
         written = read_json(path)
         assert written["scheduled_repetitions"] == 2
-        assert written["instances"]["a"]["resolve_rate"] == 0.5
+        assert written["instances"]["a"] == {
+            "runs": 2,
+            "resolved": 1,
+            "resolve_rate": None,
+        }
         assert written["coverage"]["missing_coverage"] == [
             {"instance_id": "a", "repetition": 2}
         ]
@@ -344,13 +377,18 @@ class Test04Unit08Resolution02Aggregate:
     def test_04_unit_08_resolution_02_aggregate_08_rejects_unexpected(
         self, tmp_path: Path
     ) -> None:
-        # Arrange — the report resolved an instance the run never intended
+        # Arrange — the report resolved an instance the run never intended,
+        # and an earlier run left an aggregate behind
         run_root = tmp_path / "my-run"
         (run_root / repeat_dir_name(1)).mkdir(parents=True)
         _write_metadata(run_root, ["a"])
         _write_reports(run_root, {1: _report(2, ["a", "z"], [])})
+        write_json(run_root / RESOLUTION_FILE_NAME, {"repetitions": 1})
 
-        # Act / Assert — no aggregate is written from a rejected report
+        # Act / Assert — the stale aggregate is preserved under a
+        # historical name, so it cannot pass for the current result
         with pytest.raises(ValueError, match="z"):
             aggregate_resolution(run_root)
         assert not (run_root / RESOLUTION_FILE_NAME).exists()
+        preserved = read_json(run_root / REJECTED_AGGREGATE_FILE_NAME)
+        assert preserved == {"repetitions": 1}

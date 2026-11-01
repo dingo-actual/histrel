@@ -13,7 +13,10 @@ from typing import Any
 
 from benchmark.common.io import read_json, write_json, write_jsonl
 from benchmark.predict.repeat import PREDICTIONS_FILE_NAME, repeat_dir_name
-from benchmark.predict.resolution import RESOLUTION_FILE_NAME
+from benchmark.predict.resolution import (
+    REJECTED_AGGREGATE_FILE_NAME,
+    RESOLUTION_FILE_NAME,
+)
 from benchmark.score import cli
 
 
@@ -404,21 +407,56 @@ class Test04Unit09ScoreCli03Defaults:
         assert aggregate["per_repetition"][0]["resolve_rate"] == 0.5
         assert aggregate["coverage"]["intended_instances"] == 2
         assert aggregate["coverage"]["missing_instances"] == ["inst-2"]
-        assert aggregate["instances"]["inst-2"]["runs"] == 1
+        assert aggregate["instances"]["inst-2"] == {
+            "runs": 1,
+            "resolved": 0,
+            "resolve_rate": 0.0,
+        }
 
     def test_04_unit_09_score_cli_03_defaults_06_rejects_unexpected_instances(
         self, tmp_path: Path, monkeypatch: Any
     ) -> None:
-        # Arrange — a report that graded something outside the run
+        # Arrange — a report that graded something outside the run, after an
+        # earlier run left an aggregate behind
         run_root = tmp_path / "my-run"
         _make_run(run_root, repeats=1, instance_ids=["inst-1"])
         _report(run_root, "my-run-repeat-01", ["inst-9"], submitted=["inst-9"])
+        write_json(run_root / RESOLUTION_FILE_NAME, {"repetitions": 1})
         calls: list[dict[str, Any]] = []
         _fake_run(monkeypatch, calls)
 
         # Act
         exit_code = cli.main([str(run_root)])
 
-        # Assert — no scores are computed from the rejected report
+        # Assert — no scores are computed and the stale aggregate is kept
+        # only under its historical name
         assert exit_code == 1
         assert not (run_root / RESOLUTION_FILE_NAME).exists()
+        assert read_json(run_root / REJECTED_AGGREGATE_FILE_NAME) == {"repetitions": 1}
+
+    def test_04_unit_09_score_cli_03_defaults_07_withholds_stats_without_report(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        # Arrange — repetition 2 fails to grade, so it has no report
+        run_root = tmp_path / "my-run"
+        _make_run(run_root, repeats=2, instance_ids=["inst-1"])
+        _report(
+            run_root,
+            "my-run-repeat-01",
+            ["inst-1"],
+            total=1,
+            submitted=["inst-1"],
+        )
+        calls: list[dict[str, Any]] = []
+        _fake_run(monkeypatch, calls, returncode=1)
+
+        # Act
+        exit_code = cli.main([str(run_root)])
+
+        # Assert — the one graded repetition is not summarized as overall
+        assert exit_code == 1
+        aggregate = read_json(run_root / RESOLUTION_FILE_NAME)
+        assert aggregate["reports_complete"] is False
+        assert aggregate["per_repetition"][0]["resolve_rate"] == 1.0
+        assert aggregate["instances"]["inst-1"]["resolve_rate"] is None
+        assert aggregate["resolve_rate"]["mean"] is None

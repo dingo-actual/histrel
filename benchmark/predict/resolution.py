@@ -41,6 +41,9 @@ from loguru import logger
 #: Aggregate resolution file written at the run root.
 RESOLUTION_FILE_NAME = "resolution_aggregate.json"
 
+#: Historical name a stale aggregate is moved to when a report is rejected.
+REJECTED_AGGREGATE_FILE_NAME = "resolution_aggregate.rejected.json"
+
 
 def repeat_eval_run_id(run_name: str, index: int) -> str:
     """Return the SWE-bench evaluation run ID of a repetition.
@@ -121,8 +124,20 @@ def _intended_instance_ids(run_root: Path) -> set[str]:
     return {str(instance_id) for instance_id in ids}
 
 
-def _resolve_rate(resolved: int, total: int) -> float:
-    """Return the resolve rate of one evaluation run."""
+def _resolve_rate(resolved: int, total: int, complete: bool = True) -> float | None:
+    """Return the resolve rate of one evaluation run.
+
+    Args:
+        resolved (int): Number of resolved attempts.
+        total (int): Number of attempts the rate is measured over.
+        complete (bool): Whether every scheduled repetition was reported.
+            Defaults to True. An incomplete schedule yields no rate.
+
+    Returns:
+        (float | None) The resolve rate, or None when it is withheld.
+    """
+    if not complete:
+        return None
     return round(resolved / total, 4) if total else 0.0
 
 
@@ -185,6 +200,11 @@ def summarize_resolution(
     the reports that happen to mention the instance: a repetition that never
     produced a prediction is a failed attempt, not a missing measurement.
 
+    The cross-repetition statistics and the per-instance rates are withheld
+    unless every scheduled repetition produced a report. A repetition whose
+    evaluation never ran is unobserved, so scoring it as unresolved would
+    report the agent as failing harder than it did.
+
     Args:
         reports (Sequence[tuple[str, Mapping[str, Any]]]): Pairs of evaluation
             run ID and report, in repetition order.
@@ -194,9 +214,11 @@ def summarize_resolution(
             None, which uses the number of reports.
 
     Returns:
-        (dict[str, Any]) Per-repetition counts, resolve-rate statistics across
-        repetitions, per-instance resolution counts over the scheduled
-        repetitions, and coverage of the intended set.
+        (dict[str, Any]) Per-repetition counts, whether every scheduled
+        repetition was reported, the resolve-rate statistics across
+        repetitions, per-instance resolution counts, and coverage of the
+        intended set. Both the overall and the per-instance rates are None
+        when a scheduled repetition has no report.
 
     Raises:
         ValueError: If a report mentions an instance outside the intended set.
@@ -208,7 +230,8 @@ def summarize_resolution(
         _per_repetition(_repetition_of(run_id), run_id, report, intended)
         for run_id, report in reports
     ]
-    rates = [entry["resolve_rate"] for entry in per_repetition]
+    reported = {entry["repetition"] for entry in per_repetition}
+    complete = reported == set(range(1, scheduled + 1))
     # Seed the intended IDs so an instance without a prediction or with a
     # failed attempt is reported with zero resolutions instead of vanishing.
     instance_ids_all = set(intended)
@@ -228,25 +251,54 @@ def summarize_resolution(
     return {
         "repetitions": len(per_repetition),
         "scheduled_repetitions": scheduled,
+        "reports_complete": complete,
         "per_repetition": per_repetition,
-        "resolve_rate": {
-            "count": len(rates),
-            "mean": round(statistics.fmean(rates), 4) if rates else 0.0,
-            "median": round(statistics.median(rates), 4) if rates else 0.0,
-            "min": min(rates) if rates else 0.0,
-            "max": max(rates) if rates else 0.0,
-        },
+        "resolve_rate": _overall_rate(
+            [entry["resolve_rate"] for entry in per_repetition], complete
+        ),
         "instances": {
             instance_id: {
                 "runs": scheduled,
                 "resolved": instance_resolved.get(instance_id, 0),
                 "resolve_rate": _resolve_rate(
-                    instance_resolved.get(instance_id, 0), scheduled
+                    instance_resolved.get(instance_id, 0), scheduled, complete
                 ),
             }
             for instance_id in sorted(instance_ids_all)
         },
         "coverage": _coverage(reports, intended, scheduled),
+    }
+
+
+def _overall_rate(rates: Sequence[float], complete: bool) -> dict[str, Any]:
+    """Return the cross-repetition resolve-rate statistics.
+
+    Args:
+        rates (Sequence[float]): Resolve rate of every reported repetition.
+        complete (bool): Whether every scheduled repetition was reported.
+
+    Returns:
+        (dict[str, Any]) Whether the statistics are complete and, only when
+        they are, the sample count and the mean, median, min, and max. An
+        incomplete set reports None for every statistic instead of
+        summarizing a subset of the schedule.
+    """
+    if not complete:
+        return {
+            "complete": False,
+            "count": 0,
+            "mean": None,
+            "median": None,
+            "min": None,
+            "max": None,
+        }
+    return {
+        "complete": True,
+        "count": len(rates),
+        "mean": round(statistics.fmean(rates), 4) if rates else 0.0,
+        "median": round(statistics.median(rates), 4) if rates else 0.0,
+        "min": min(rates) if rates else 0.0,
+        "max": max(rates) if rates else 0.0,
     }
 
 
@@ -285,6 +337,26 @@ def _reject_unexpected(
         raise ValueError(
             f"Report {run_id} graded instances outside the run: {', '.join(unexpected)}"
         )
+
+
+def _preserve_stale_aggregate(path: Path) -> None:
+    """Move a stale aggregate aside so it cannot pass for the current one.
+
+    Args:
+        path (Path): Aggregate path written by an earlier run, if any.
+    """
+    if not path.exists():
+        return
+    rejected = path.with_name(REJECTED_AGGREGATE_FILE_NAME)
+    path.replace(rejected)
+    logger.bind(
+        component="benchmark.predict.resolution",
+        origin="bench_harness_predict",
+        event="repeat.aggregate_preserved",
+    ).warning(
+        "Preserved stale resolution aggregate after a rejected report",
+        path=str(rejected),
+    )
 
 
 def _coverage(
@@ -337,7 +409,8 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
     The instance IDs recorded in the run metadata are the denominator, and
     every report is checked against them. Per-instance rates are measured
     over the scheduled repetitions, which are the repetition directories in
-    the run root.
+    the run root. The cross-repetition statistics and the per-instance rates
+    are withheld when any of those repetitions has no report.
 
     Args:
         run_root (Path): Run directory that holds the repetition directories.
@@ -347,6 +420,12 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
 
     Returns:
         (Path) Path to the written ``resolution_aggregate.json``.
+
+    Raises:
+        ValueError: If a report mentions an instance outside the intended
+            set. An aggregate from an earlier run is then moved to
+            ``resolution_aggregate.rejected.json`` so no stale file keeps
+            looking current.
     """
     reports_root = reports_root or run_root
     reports: list[tuple[str, dict[str, Any]]] = []
@@ -359,7 +438,12 @@ def aggregate_resolution(run_root: Path, reports_root: Path | None = None) -> Pa
 
     path = run_root / RESOLUTION_FILE_NAME
     intent = sorted(_intended_instance_ids(run_root))
-    write_json(path, summarize_resolution(reports, intent, len(repeat_dirs)))
+    try:
+        summary = summarize_resolution(reports, intent, len(repeat_dirs))
+    except ValueError:
+        _preserve_stale_aggregate(path)
+        raise
+    write_json(path, summary)
     logger.bind(
         component="benchmark.predict.resolution",
         origin="bench_harness_predict",

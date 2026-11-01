@@ -198,7 +198,8 @@ batch resumes where it stopped.
 
 `resolution_aggregate.json` holds the resolve rate of each repetition, the
 mean, median, min, and max resolve rate across repetitions, and per-instance
-resolution counts.
+resolution counts. The rates are `null` unless every scheduled repetition has
+a report: a repetition whose evaluation never ran is unobserved, not failed.
 
 ## Tools
 
