@@ -23,7 +23,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from histrel.context.compactor import Compactor
+from histrel.context.compactor import CompactedState, Compactor
 from histrel.context.session_events import SessionEvents
 from histrel.context.timings import Timings
 from histrel.context.token_ledger import TokenLedger
@@ -83,6 +83,9 @@ class Runtime:
         repo_checker (RepoStateChecker): Repository state checker.
         session_events (SessionEvents): Compaction and source event recorder.
         compactor (Compactor): Context compactor.
+        compacted_state (CompactedState | None): Latest compaction, whose
+            summary stands in for the journal messages before its
+            retained tail.
         terminal_evaluator (TerminalEvaluator): Terminal condition evaluator.
         model_adapter (OpenAICompatAdapter): Model adapter.
         ordinary_tools (list[Tool]): Ordinary tools.
@@ -104,6 +107,7 @@ class Runtime:
     repo_checker: RepoStateChecker
     session_events: SessionEvents
     compactor: Compactor
+    compacted_state: CompactedState | None
     terminal_evaluator: TerminalEvaluator
     model_adapter: OpenAICompatAdapter
     tool_registry: ToolRegistry | None
@@ -130,6 +134,7 @@ class Runtime:
         wire_adapters(self)
         self.ordinary_tools: list[Tool] = []
         self.tool_registry: ToolRegistry | None = None
+        self.compacted_state = None
         self.turn_count = 0
         self.iteration_count = 0
         self.tool_call_required = False

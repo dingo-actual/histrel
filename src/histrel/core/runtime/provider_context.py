@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from histrel.context.builder import message_to_provider
+from histrel.context.context_view import active_messages
 from histrel.core.journal import load_journal
 from histrel.model.messages import Message, TextPart, ToolResultPart
 from histrel.model.render import (
@@ -44,6 +45,13 @@ TOOL_CALL_REQUIRED_REMINDER = (
     "with at least one tool call."
 )
 
+# Message carrying the compaction summary in react mode: it stands in for
+# the journal messages before the retained tail.
+CONTEXT_CHECKPOINT_PREFIX = (
+    "## Context Checkpoint\n\nThe earlier conversation was compacted. "
+    "Summary of prior work:\n\n"
+)
+
 
 def _tool_definitions(tools: tuple[Tool, ...]) -> tuple[ToolDefinition, ...]:
     """Convert Tool objects into provider tool definitions.
@@ -64,38 +72,52 @@ def _react_provider_messages(
     *,
     system_prompt: str,
     user_msg: str,
-    journal_messages: list[Message],
+    presented_messages: list[Message],
+    summary: str = "",
+    skip_task: bool = False,
 ) -> tuple[ProviderMessage, ...]:
     """Build react-mode provider messages from conversation history.
 
     Lays out the request as: the system prompt, the task user message,
-    then every assistant message, tool call, and tool call result in
-    commit order. The journal's first user message (the committed task
-    message) is skipped because it is the task user message; later
-    user messages (revision feedback) are included.
+    the compaction summary when there is one, then every presented
+    assistant message, tool call, and tool call result in commit order.
+    The journal's first user message (the committed task message) is
+    skipped because it is the task user message; later user messages
+    (revision feedback) are included.
 
     Args:
         system_prompt (str): System prompt for this iteration.
         user_msg (str): Task user message passed to the agent loop.
-        journal_messages (list[Message]): Committed journal messages.
+        presented_messages (list[Message]): The presented history, which
+            starts after the compacted middle once a compaction exists.
+        summary (str): Compaction summary standing in for that middle.
+        skip_task (bool): Whether the first user message is the
+            committed task message.
 
     Returns:
         (tuple[ProviderMessage, ...]) Provider messages for the request.
     """
     history: list[ProviderMessage] = []
     task_message_seen = False
-    for msg in journal_messages:
-        if msg.role == "user" and not task_message_seen:
+    for msg in presented_messages:
+        if skip_task and msg.role == "user" and not task_message_seen:
             task_message_seen = True
             continue
         converted = message_to_provider(msg)
         if converted is not None:
             history.append(converted)
-    return (
+    messages = [
         ProviderMessage(role="system", content=system_prompt),
         ProviderMessage(role="user", content=user_msg),
-        *history,
-    )
+    ]
+    if summary:
+        messages.append(
+            ProviderMessage(
+                role="user", content=f"{CONTEXT_CHECKPOINT_PREFIX}{summary}"
+            )
+        )
+    messages.extend(history)
+    return tuple(messages)
 
 
 def _latest_assistant_text(messages: list[Message]) -> str:
@@ -126,19 +148,22 @@ def _stateless_user_content(
     runtime: Runtime,
     user_msg: str,
     tools: tuple[Tool, ...],
-    journal_messages: list[Message],
+    presented_messages: list[Message],
+    summary: str = "",
 ) -> str:
     """Render the per-iteration stateless user message.
 
     The first iteration renders the initialize prompt; every later
-    iteration renders the step prompt with the turn's observations and
-    latest assistant reasoning.
+    iteration renders the step prompt with the compaction summary, the
+    turn's observations, and the latest assistant reasoning.
 
     Args:
         runtime (Runtime): The runtime session state.
-        user_msg (str): Task user message passed to the agent loop.
+        user_msg (str): Agent loop task user message.
         tools (tuple[Tool, ...]): The session's tools.
-        journal_messages (list[Message]): Committed journal messages.
+        presented_messages (list[Message]): The presented history, which
+            starts after the compacted middle once a compaction exists.
+        summary (str): Summary of the compacted observations.
 
     Returns:
         (str) The rendered user message content.
@@ -152,7 +177,7 @@ def _stateless_user_content(
         f"[Iteration {part.iter_num}] {format_tool_call(part.tool_name, part.arguments)}\n"
         f"---\n"
         f"{part.output or ''}"
-        for msg in journal_messages
+        for msg in presented_messages
         if msg.role == "tool"
         for part in msg.content
         # Informative failures come from correctly-specified calls:
@@ -162,10 +187,11 @@ def _stateless_user_content(
     return render_user_message_step(
         instance_problem=user_msg,
         observations=observations,
-        reasoning_state=_latest_assistant_text(journal_messages),
+        reasoning_state=_latest_assistant_text(presented_messages),
         available_tools=list(tools),
         iter_crnt=runtime.iteration_count,
         reminder=(TOOL_CALL_REQUIRED_REMINDER if runtime.tool_call_required else ""),
+        summary=summary,
     )
 
 
@@ -180,9 +206,11 @@ def build_provider_context(
 
     Both modes send the session's static tool definitions. Stateless
     mode renders a per-iteration user message with no conversation
-    history; react mode replays the full conversation history: the task
-    user message plus every assistant message, tool call, and tool
-    call result committed so far.
+    history; react mode replays the presented conversation history: the
+    task user message plus every assistant message, tool call, and tool
+    call result committed so far. After a compaction the presented
+    history starts at the retained tail, which the summary stands in
+    for.
 
     Args:
         runtime (Runtime): The runtime session state.
@@ -194,16 +222,23 @@ def build_provider_context(
         (tuple) The (tool definitions, provider messages) for the
         iteration's model request.
     """
+    state = runtime.compacted_state
     journal_messages = list(load_journal(runtime.journal._path))
+    presented_messages = active_messages(journal_messages, state)
+    summary = "" if state is None else state.working_summary
     tool_defs = _tool_definitions(tools)
     if runtime.config.mode == "react":
         provider_messages = _react_provider_messages(
             system_prompt=system_prompt,
             user_msg=user_msg,
-            journal_messages=journal_messages,
+            presented_messages=presented_messages,
+            summary=summary,
+            skip_task=state is None,
         )
         return tool_defs, provider_messages
-    user_content = _stateless_user_content(runtime, user_msg, tools, journal_messages)
+    user_content = _stateless_user_content(
+        runtime, user_msg, tools, presented_messages, summary
+    )
     provider_messages = (
         ProviderMessage(role="system", content=system_prompt),
         ProviderMessage(role="user", content=user_content),

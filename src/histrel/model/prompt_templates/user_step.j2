@@ -9,6 +9,14 @@
 {{ reminder }}
 
 {% endif %}
+{% if summary %}
+## Context Checkpoint
+
+The earlier conversation was compacted. Summary of prior work:
+
+{{ summary }}
+
+{% endif %}
 ## Observations
 
 {% for obs in observations%}

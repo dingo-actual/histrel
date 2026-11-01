@@ -79,6 +79,7 @@ def render_user_message_step(
     available_tools: list[Tool],
     iter_crnt: int,
     reminder: str = "",
+    summary: str = "",
 ) -> str:
     """Render a later-iteration user message.
 
@@ -92,6 +93,8 @@ def render_user_message_step(
         available_tools (list[Tool]): Projected tools for this iteration.
         iter_crnt (int): Current loop iteration number.
         reminder (str): Optional reminder; omitted when empty.
+        summary (str): Summary of compacted observations; omitted when
+            empty.
 
     Returns:
         (str) Rendered user message.
@@ -116,6 +119,7 @@ def render_user_message_step(
         available_tools=available_tools,
         iter_crnt=iter_crnt,
         reminder=reminder,
+        summary=summary,
     )
 
 

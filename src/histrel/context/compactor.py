@@ -48,6 +48,19 @@ if TYPE_CHECKING:
 # the compaction target. Not used for actual token counting.
 _CHARS_PER_TOKEN = 4
 
+
+def estimate_tokens(text: str) -> int:
+    """Estimate a text's token count from its length.
+
+    Args:
+        text (str): Text to estimate.
+
+    Returns:
+        (int) Estimated token count.
+    """
+    return len(text) // _CHARS_PER_TOKEN
+
+
 _COMPACTION_SYSTEM_PROMPT = """\
 You are a summarization agent creating a context checkpoint for a coding \
 agent. Treat the conversation turns below as source material for a compact \
@@ -103,6 +116,10 @@ class CompactedState(BaseModel):
         recent_message_ids (tuple[str, ...]): Retained recent message IDs.
         source_message_index_start (int): First compacted index (-1 if no middle).
         source_message_index_end (int): Last compacted index (-1 if no middle).
+
+    The index range is relative to the message list passed to
+    ``Compactor.compact``. It equals the journal range as long as that
+    list is the journal itself.
     """
 
     system_prompt: str
@@ -123,7 +140,8 @@ class Compactor:
     Instance Attributes:
         _config (AgentConfig): Agent configuration.
         _on_compaction (Callable[[CompactedState], None] | None): Callback
-            invoked with every produced state, used to record the event.
+            invoked with every state that compacted a middle, used to
+            record the event.
     """
 
     def __init__(
@@ -172,6 +190,7 @@ class Compactor:
         recent_tail_count: int,
         model_adapter: OpenAICompatAdapter,
         token_ledger: TokenLedger,
+        prior_summary: str = "",
     ) -> CompactedState:
         """Create a CompactedState from the current session state.
 
@@ -183,12 +202,15 @@ class Compactor:
         call_kind="compaction".
 
         Args:
-            messages (list[Message]): All journal messages.
+            messages (list[Message]): The message view being compacted.
             system_prompt (str): System prompt (protected head).
             original_task (str): Original task text (protected head).
             recent_tail_count (int): Number of messages to retain as tail.
             model_adapter (OpenAICompatAdapter): Model adapter for the summary call.
             token_ledger (TokenLedger): Token ledger for recording the summary call.
+            prior_summary (str): Summary of an earlier compaction. It is
+                folded into the new summary so earlier work survives a
+                second compaction.
 
         Returns:
             (CompactedState) Compacted state snapshot.
@@ -210,6 +232,7 @@ class Compactor:
                 model_adapter=model_adapter,
                 token_ledger=token_ledger,
                 message_index=middle_start,
+                prior_summary=prior_summary,
             )
 
         state = CompactedState(
@@ -220,7 +243,7 @@ class Compactor:
             source_message_index_end=middle_end,
             working_summary=working_summary,
         )
-        if self._on_compaction is not None:
+        if self._on_compaction is not None and has_middle:
             self._on_compaction(state)
         return state
 
@@ -285,6 +308,7 @@ def _summarize_middle(
     model_adapter: OpenAICompatAdapter,
     token_ledger: TokenLedger,
     message_index: int,
+    prior_summary: str = "",
 ) -> str:
     """Summarize the compacted middle with an LLM call.
 
@@ -298,14 +322,17 @@ def _summarize_middle(
         model_adapter (OpenAICompatAdapter): Model adapter for the summary call.
         token_ledger (TokenLedger): Token ledger for recording the summary call.
         message_index (int): Ledger message index for the summary call.
+        prior_summary (str): Summary of an earlier compaction to fold in.
 
     Returns:
         (str) The generated working summary.
     """
-    serialized = _serialize_middle_messages(middle_messages, original_task)
+    serialized = _serialize_middle_messages(
+        middle_messages, original_task, prior_summary
+    )
     # Estimate input tokens with a character-based heuristic (tiktoken is
     # not used for production token counting).
-    estimated_input_tokens = len(serialized) // _CHARS_PER_TOKEN
+    estimated_input_tokens = estimate_tokens(serialized)
     target_tokens = max(
         int(estimated_input_tokens * config.compaction.target_fraction),
         1,
@@ -385,17 +412,26 @@ def _format_tool_result(part: ToolResultPart) -> str:
 def _serialize_middle_messages(
     middle_messages: list[Message],
     original_task: str,
+    prior_summary: str = "",
 ) -> str:
     """Serialize middle messages into a text block for the summarizer.
 
     Args:
         middle_messages (list[Message]): Messages to summarize.
         original_task (str): The original task for context.
+        prior_summary (str): Summary of an earlier compaction to fold in.
 
     Returns:
         (str) Serialized conversation text.
     """
-    lines = [f"Original task: {original_task}", "", "Conversation to summarize:"]
+    lines = [f"Original task: {original_task}", ""]
+    if prior_summary:
+        lines += [
+            "Summary of earlier work, already compacted:",
+            prior_summary,
+            "",
+        ]
+    lines.append("Conversation to summarize:")
     for msg in middle_messages:
         text = _extract_text(msg.content)
         if text:

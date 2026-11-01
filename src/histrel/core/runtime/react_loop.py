@@ -17,9 +17,9 @@ from typing import TYPE_CHECKING
 
 from histrel.core.clock import monotonic_now
 from histrel.core.ids import new_message_id
+from histrel.core.runtime.context_preparation import prepare_provider_context
 from histrel.core.runtime.provider_context import (
     build_model_request,
-    build_provider_context,
 )
 from histrel.core.runtime.runtime import Runtime, log
 from histrel.core.runtime.session_setup import (
@@ -67,12 +67,12 @@ def run_agent(user_msg: str, runtime: Runtime) -> SessionOutcome:
         # iteration steps it.
         runtime.iteration_count += 1
 
-        tool_defs, provider_messages = _iteration_context(runtime, user_msg)
-
-        # Invoke the model
+        # Invoke the model. Context preparation can itself call the model
+        # to summarize a compaction, so it shares this error path.
         call_id = new_message_id()
         started = monotonic_now()
         try:
+            tool_defs, provider_messages = _iteration_context(runtime, user_msg)
             response = runtime.model_adapter.complete(
                 build_model_request(
                     runtime,
@@ -111,8 +111,9 @@ def _iteration_context(
 ) -> tuple[tuple[ToolDefinition, ...], tuple[ProviderMessage, ...]]:
     """Prepare one iteration's toolset and provider context.
 
-    Passes the session's static tool set and builds the provider
-    context (stateless or react mode).
+    Passes the session's static tool set and builds the provider context
+    (stateless or react mode), compacting the history first when the
+    estimated prompt exceeds the input budget.
 
     Args:
         runtime (Runtime): The runtime session state.
@@ -128,7 +129,7 @@ def _iteration_context(
         else runtime.config.agent_system_prompt.step
     )
 
-    return build_provider_context(
+    return prepare_provider_context(
         runtime,
         system_prompt=system_prompt,
         user_msg=user_msg,
