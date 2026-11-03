@@ -1,0 +1,9 @@
+{
+  "session_wall_seconds": 1123.0386165530654,
+  "model_wall_seconds": 1061.865923276171,
+  "repository_tool_wall_seconds": 34.78147561359219,
+  "compaction_wall_seconds": 0.0,
+  "harness_overhead_wall_seconds": 0.0,
+  "wall_clock_metric_priority": "secondary",
+  "qualification": "Elapsed time is diagnostic rather than a primary efficacy measure."
+}

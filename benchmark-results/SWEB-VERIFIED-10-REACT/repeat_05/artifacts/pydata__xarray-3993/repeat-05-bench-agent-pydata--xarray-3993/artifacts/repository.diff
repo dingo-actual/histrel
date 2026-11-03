@@ -1,0 +1,162 @@
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index 488d8baa..27a176e1 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -45,6 +45,12 @@ Breaking changes
+ 
+ New Features
+ ~~~~~~~~~~~~
++- Deprecate the `dim` kwarg on `DataArray.integrate` and `Dataset.integrate`, replaced by the `coord` kwarg,
++  matching `differentiate` (and numpy convention for integration functions). ({issue}`4231`)
++  By `Elliot Jovich <https://github.com/elliotjovich>`_.
++- :py:meth:`DataArray.integrate` and :py:meth:`Dataset.integrate` now integrate over all coordinates by default if no
++  coordinates were provided.
++  By `Elliot Jovich <https://github.com/elliotjovich>`_.
+ - Significantly higher ``unstack`` performance on numpy-backed arrays which
+   contain missing values; 8x faster in our benchmark, and 2x faster than pandas.
+   (:pull:`4746`);
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 2fef3edb..4a38e461 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -3481,21 +3481,31 @@ class DataArray(AbstractArray, DataWithCoords):
+         return self._from_temp_dataset(ds)
+ 
+     def integrate(
+-        self, dim: Union[Hashable, Sequence[Hashable]], datetime_unit: str = None
++        self,
++        coord: Union[Hashable, Sequence[Hashable]] = None,
++        datetime_unit: str = None,
++        *,
++        dim: Union[Hashable, Sequence[Hashable]] = None,
+     ) -> "DataArray":
+         """ integrate the array with the trapezoidal rule.
+ 
+         .. note::
+-            This feature is limited to simple cartesian geometry, i.e. dim
++            This feature is limited to simple cartesian geometry, i.e. coord
+             must be one dimensional.
+ 
+         Parameters
+         ----------
+-        dim : hashable, or sequence of hashable
+-            Coordinate(s) used for the integration.
++        coord : hashable, or sequence of hashable, optional
++            Coordinate(s) used for the integration. If None, all 1-dimensional
++            coordinates are integrated over.
+         datetime_unit : {"Y", "M", "W", "D", "h", "m", "s", "ms", "us", "ns", \
+                          "ps", "fs", "as"}, optional
+             Can be used to specify the unit if datetime coordinate is used.
++        dim : hashable, or sequence of hashable, optional
++            .. deprecated:: 0.17.0
++               Use the ``coord`` argument instead.
++            Dimension(s) over which to integrate. The coordinate with the
++            same name is used for the integration.
+ 
+         Returns
+         -------
+@@ -3528,7 +3538,21 @@ class DataArray(AbstractArray, DataWithCoords):
+         array([5.4, 6.6, 7.8])
+         Dimensions without coordinates: y
+         """
+-        ds = self._to_temp_dataset().integrate(dim, datetime_unit)
++        if dim is not None:
++            if coord is not None:
++                raise TypeError("cannot specify both keyword 'coord' and 'dim'")
++            warnings.warn(
++                "The `dim` argument to `DataArray.integrate` is deprecated. "
++                "Use the `coord` argument instead. Note that `coord` refers "
++                "to the coordinate used for the integration, whereas the "
++                "deprecated `dim` argument referred to the dimension to be "
++                "integrated over.",
++                FutureWarning,
++                stacklevel=2,
++            )
++            coord = dim
++
++        ds = self._to_temp_dataset().integrate(coord, datetime_unit)
+         return self._from_temp_dataset(ds)
+ 
+     def unify_chunks(self) -> "DataArray":
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index a73e299e..f2e90f42 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -5963,7 +5963,7 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+                 variables[k] = v
+         return self._replace(variables)
+ 
+-    def integrate(self, coord, datetime_unit=None):
++    def integrate(self, coord=None, datetime_unit=None, *, dim=None):
+         """ integrate the array with the trapezoidal rule.
+ 
+         .. note::
+@@ -5972,11 +5972,17 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+ 
+         Parameters
+         ----------
+-        coord: str, or sequence of str
+-            Coordinate(s) used for the integration.
++        coord: str, or sequence of str, optional
++            Coordinate(s) used for the integration. If None, all 1-dimensional
++            coordinates are integrated over.
+         datetime_unit : {"Y", "M", "W", "D", "h", "m", "s", "ms", "us", "ns", \
+                          "ps", "fs", "as"}, optional
+             Can be specify the unit if datetime coordinate is used.
++        dim : hashable, or sequence of hashable, optional
++            .. deprecated:: 0.17.0
++               Use the ``coord`` argument instead.
++            Dimension(s) over which to integrate. The coordinate with the
++            same name is used for the integration.
+ 
+         Returns
+         -------
+@@ -6015,11 +6021,44 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+             a        float64 20.0
+             b        float64 4.0
+         """
+-        if not isinstance(coord, (list, tuple)):
+-            coord = (coord,)
++        # TODO: remove the dispatch to `dim` after the deprecation cycle
++        # (see https://github.com/pydata/xarray/issues/4231)
++        if coord is not None and dim is not None:
++            raise TypeError("cannot specify both keyword 'coord' and 'dim'")
++
++        if coord is not None:
++            if isinstance(coord, str) or not isinstance(coord, (list, tuple)):
++                coord = (coord,)
++            result = self
++            for c in coord:
++                result = result._integrate_one(c, datetime_unit=datetime_unit)
++            return result
++
++        if dim is not None:
++            if isinstance(dim, str) or not isinstance(dim, (list, tuple)):
++                dim = (dim,)
++            warnings.warn(
++                "The `dim` argument to `Dataset.integrate` is deprecated. "
++                "Use the `coord` argument instead. Note that `coord` refers "
++                "to the coordinate used for the integration, whereas the "
++                "deprecated `dim` argument referred to the dimension to be "
++                "integrated over.",
++                FutureWarning,
++                stacklevel=2,
++            )
++            result = self
++            for d in dim:
++                result = result._integrate_one(d, datetime_unit=datetime_unit)
++            return result
++
++        if not self.dims:
++            raise ValueError(
++                "Dataset has no dimensions to integrate over. "
++                "Please provide a coordinate with which to integrate."
++            )
+         result = self
+-        for c in coord:
+-            result = result._integrate_one(c, datetime_unit=datetime_unit)
++        for d in self.dims:
++            result = result._integrate_one(d, datetime_unit=datetime_unit)
+         return result
+ 
+     def _integrate_one(self, coord, datetime_unit=None):

@@ -1,0 +1,51 @@
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 5203e3232c..defe1d0f82 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -1398,6 +1398,26 @@ class _AxesBase(martist.Artist):
+         else:
+             self.clear()
+ 
++    def _unit_change_handler(self, axis_name, event=None):
++        """
++        Process axis units changes: requests updates to data and view limits.
++
++        This callback is connected to the "units" signal of each axis of this
++        Axes only (and not to the corresponding axis of Axes sharing it), so
++        that e.g. creating a twin Axes does not trigger a relim of this Axes
++        (which, if it has no children using this axis, would reset its
++        dataLim to an empty Bbox).
++        """
++        if event is None:  # Allow connecting `self._unit_change_handler(name)`
++            return functools.partial(
++                self._unit_change_handler, axis_name, event=object())
++        _api.check_in_list(self._axis_map, axis_name=axis_name)
++        for line in self.lines:
++            line.recache_always()
++        self.relim()
++        self._request_autoscale_view(
++            "all" if axis_name == "x" else axis_name)
++
+     class ArtistList(Sequence):
+         """
+         A sublist of Axes children based on their type.
+@@ -2445,7 +2465,8 @@ class _AxesBase(martist.Artist):
+         for line in self.lines:
+             line.recache_always()
+         self.relim()
+-        self._request_autoscale_view(axis_name)
++        self._request_autoscale_view(
++            "all" if axis_name == "x" else axis_name)
+ 
+     def relim(self, visible_only=False):
+         """
+@@ -2453,6 +2474,9 @@ class _AxesBase(martist.Artist):
+ 
+         At present, `.Collection` instances are not supported.
+ 
++        Note that only artists actually added to *this* Axes are considered;
++        other Axes (e.g. twinned or shared Axes) are unaffected.
++
+         Parameters
+         ----------
+         visible_only : bool, default: False

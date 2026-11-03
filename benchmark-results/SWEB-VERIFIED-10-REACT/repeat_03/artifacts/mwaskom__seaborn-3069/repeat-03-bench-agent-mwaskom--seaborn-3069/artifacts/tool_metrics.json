@@ -1,0 +1,32 @@
+{
+  "bash": {
+    "count": 72,
+    "successes": 69,
+    "failures": 3,
+    "total_elapsed_ms": 81887
+  },
+  "glob": {
+    "count": 1,
+    "successes": 1,
+    "failures": 0,
+    "total_elapsed_ms": 23
+  },
+  "search": {
+    "count": 7,
+    "successes": 7,
+    "failures": 0,
+    "total_elapsed_ms": 48
+  },
+  "read": {
+    "count": 14,
+    "successes": 13,
+    "failures": 1,
+    "total_elapsed_ms": 1
+  },
+  "edit": {
+    "count": 6,
+    "successes": 2,
+    "failures": 4,
+    "total_elapsed_ms": 104402
+  }
+}

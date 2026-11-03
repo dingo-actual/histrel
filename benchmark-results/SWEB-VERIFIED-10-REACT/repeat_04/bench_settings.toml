@@ -1,0 +1,30 @@
+# Resolved benchmark configuration.
+# Written by the predictor and mounted into each instance container.
+
+[histrel]
+models = "accounts/fireworks/models/glm-5p3-flash"
+token_budget = 3000000
+token_budget_buffer = 25000
+
+[benchmark]
+output_dir = "benchmark/results/SWEB-VERIFIED-10-REACT"
+run_name = "repeat_04"
+mode = "react"
+seed = 12321
+allow_network = true
+allow_shell_observation = true
+rebuild = false
+show_container_streams = false
+
+[benchmark.swe_bench]
+enabled = true
+split = "test"
+dataset_id = "princeton-nlp/SWE-bench_Verified"
+max_instances = 10
+timeout_seconds = 7200
+docker = true
+docker_base_image = "python:3.11-slim"
+tools = ["ripgrep", "fd", "tokei"]
+
+[benchmark.verbose]
+enabled = false

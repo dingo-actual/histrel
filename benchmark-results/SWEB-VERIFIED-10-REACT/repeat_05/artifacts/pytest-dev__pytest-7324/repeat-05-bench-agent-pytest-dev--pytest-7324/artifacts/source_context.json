@@ -1,0 +1,31 @@
+{
+  "session_id": "repeat-05-bench-agent-pytest-dev--pytest-7324",
+  "task_id": "pytest-dev__pytest-7324",
+  "mode": "react",
+  "model": {
+    "provider": "fireworks",
+    "name": "accounts/fireworks/models/glm-5p3-flash",
+    "context_limit_tokens": 1000000,
+    "max_tokens_output": 131072
+  },
+  "budgets": {
+    "max_wall_seconds": 7200,
+    "max_turns": 300,
+    "max_tool_calls": 0,
+    "token_budget": 3000000,
+    "token_budget_buffer": 25000
+  },
+  "workspace": {
+    "root": "/testbed",
+    "head_commit": "3194c9e49feb40b9deee3f6926ef9e952b4b9322",
+    "branch": "main"
+  },
+  "tools": [
+    "bash",
+    "edit",
+    "glob",
+    "list_dir",
+    "read",
+    "search"
+  ]
+}

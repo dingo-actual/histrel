@@ -1,0 +1,23 @@
+diff --git a/src/_pytest/mark/expression.py b/src/_pytest/mark/expression.py
+index 04c73411a..cea674baa 100644
+--- a/src/_pytest/mark/expression.py
++++ b/src/_pytest/mark/expression.py
+@@ -172,6 +172,18 @@ class MatcherAdapter(Mapping[str, bool]):
+         self.matcher = matcher
+ 
+     def __getitem__(self, key: str) -> bool:
++        # Match expressions may use "True", "False" or "None" as
++        # identifiers, but Python's compiler refuses to compile a name
++        # with those names (e.g. "Name node can't be used with 'True'
++        # constant"), aborting on debug builds of CPython. Redirect those
++        # lookups to equivalent, always-valid identifiers so they are
++        # still resolved via the matcher.
++        if key == "True":
++            key = "true_"
++        elif key == "False":
++            key = "false_"
++        elif key == "None":
++            key = "None_"
+         return self.matcher(key)
+ 
+     def __iter__(self) -> Iterator[str]:

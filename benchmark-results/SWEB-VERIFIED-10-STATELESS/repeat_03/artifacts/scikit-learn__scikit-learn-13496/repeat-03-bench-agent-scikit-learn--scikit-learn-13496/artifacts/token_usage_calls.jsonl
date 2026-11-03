@@ -1,0 +1,9 @@
+{"message_index": 1, "provider_request_id": "chatcmpl-e9914a8e", "call_kind": "model", "usage": {"input": 2606, "output": 94, "reasoning": 12, "total": 2700, "cached": 0, "maximum_context": 0, "available": true}}
+{"message_index": 4, "provider_request_id": "chatcmpl-aab6b917", "call_kind": "model", "usage": {"input": 5950, "output": 120, "reasoning": 16, "total": 6070, "cached": 2304, "maximum_context": 0, "available": true}}
+{"message_index": 7, "provider_request_id": "chatcmpl-e7bb92a7", "call_kind": "model", "usage": {"input": 6519, "output": 86, "reasoning": 13, "total": 6605, "cached": 2304, "maximum_context": 0, "available": true}}
+{"message_index": 10, "provider_request_id": "chatcmpl-a1598645", "call_kind": "model", "usage": {"input": 9075, "output": 907, "reasoning": 301, "total": 9982, "cached": 4352, "maximum_context": 0, "available": true}}
+{"message_index": 13, "provider_request_id": "chatcmpl-706c3cad", "call_kind": "model", "usage": {"input": 10016, "output": 116, "reasoning": 85, "total": 10132, "cached": 4992, "maximum_context": 0, "available": true}}
+{"message_index": 15, "provider_request_id": "chatcmpl-a6415fde", "call_kind": "model", "usage": {"input": 11002, "output": 216, "reasoning": 56, "total": 11218, "cached": 8192, "maximum_context": 0, "available": true}}
+{"message_index": 18, "provider_request_id": "chatcmpl-b73ab1cf", "call_kind": "model", "usage": {"input": 11869, "output": 969, "reasoning": 63, "total": 12838, "cached": 8448, "maximum_context": 0, "available": true}}
+{"message_index": 21, "provider_request_id": "chatcmpl-2b942356", "call_kind": "model", "usage": {"input": 12845, "output": 59, "reasoning": 17, "total": 12904, "cached": 9344, "maximum_context": 0, "available": true}}
+{"message_index": 23, "provider_request_id": "chatcmpl-58df2489", "call_kind": "model", "usage": {"input": 12864, "output": 490, "reasoning": 227, "total": 13354, "cached": 10240, "maximum_context": 0, "available": true}}

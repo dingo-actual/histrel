@@ -1,0 +1,31 @@
+{
+  "session_id": "repeat-01-bench-agent-pallets--flask-5014",
+  "task_id": "pallets__flask-5014",
+  "mode": "stateless",
+  "model": {
+    "provider": "fireworks",
+    "name": "accounts/fireworks/models/glm-5p3-flash",
+    "context_limit_tokens": 1000000,
+    "max_tokens_output": 131072
+  },
+  "budgets": {
+    "max_wall_seconds": 7200,
+    "max_turns": 300,
+    "max_tool_calls": 0,
+    "token_budget": 3000000,
+    "token_budget_buffer": 25000
+  },
+  "workspace": {
+    "root": "/testbed",
+    "head_commit": "f3920e0fc362b01e704ad6b054f426cfa2f3d6d0",
+    "branch": "main"
+  },
+  "tools": [
+    "bash",
+    "edit",
+    "glob",
+    "list_dir",
+    "read",
+    "search"
+  ]
+}

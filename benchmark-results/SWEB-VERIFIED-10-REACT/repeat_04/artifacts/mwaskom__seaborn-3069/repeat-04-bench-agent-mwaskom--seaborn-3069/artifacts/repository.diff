@@ -1,0 +1,127 @@
+diff --git a/seaborn/_core/plot.py b/seaborn/_core/plot.py
+index 4f0290a4..38dfb9ba 100644
+--- a/seaborn/_core/plot.py
++++ b/seaborn/_core/plot.py
+@@ -4,7 +4,6 @@ from __future__ import annotations
+ import io
+ import os
+ import re
+-import sys
+ import inspect
+ import itertools
+ import textwrap
+@@ -13,6 +12,7 @@ from collections import abc
+ from collections.abc import Callable, Generator
+ from typing import Any, List, Optional, cast
+ 
++import numpy as np
+ from cycler import cycler
+ import pandas as pd
+ from pandas import DataFrame, Series, Index
+@@ -47,10 +47,7 @@ if TYPE_CHECKING:
+     from matplotlib.figure import SubFigure
+ 
+ 
+-if sys.version_info >= (3, 8):
+-    from typing import TypedDict
+-else:
+-    from typing_extensions import TypedDict
++from typing import TypedDict
+ 
+ 
+ default = Default()
+@@ -1475,21 +1472,22 @@ class Plotter:
+ 
+                 axes_df = self._filter_subplot_data(df, view)
+ 
+-                with pd.option_context("mode.use_inf_as_null", True):
+-                    if keep_na:
+-                        # The simpler thing to do would be x.dropna().reindex(x.index).
+-                        # But that doesn't work with the way that the subset iteration
+-                        # is written below, which assumes data for grouping vars.
+-                        # Matplotlib (usually?) masks nan data, so this should "work".
+-                        # Downstream code can also drop these rows, at some speed cost.
+-                        present = axes_df.notna().all(axis=1)
+-                        nulled = {}
+-                        for axis in "xy":
+-                            if axis in axes_df:
+-                                nulled[axis] = axes_df[axis].where(present)
+-                        axes_df = axes_df.assign(**nulled)
+-                    else:
+-                        axes_df = axes_df.dropna()
++                axes_df = axes_df.mask(axes_df.isin([np.inf, -np.inf]), np.nan)
++
++                if keep_na:
++                    # The simpler thing would be x.dropna().reindex(x.index).
++                    # But that doesn't work with the way that the subset iteration
++                    # is written below, which assumes data for grouping vars.
++                    # Matplotlib (usually?) masks nan data, so this should "work".
++                    # Downstream code can also drop these rows, at some speed cost.
++                    present = axes_df.notna().all(axis=1)
++                    nulled = {}
++                    for axis in "xy":
++                        if axis in axes_df:
++                            nulled[axis] = axes_df[axis].where(present)
++                    axes_df = axes_df.assign(**nulled)
++                else:
++                    axes_df = axes_df.dropna()
+ 
+                 subplot_keys = {}
+                 for dim in ["col", "row"]:
+@@ -1633,9 +1631,9 @@ class Plotter:
+                 axis_key = sub[axis]
+ 
+                 # Axis limits
+-                if axis_key in p._limits:
++                if axis_key in p._limits or axis in p._limits:
+                     convert_units = getattr(ax, f"{axis}axis").convert_units
+-                    a, b = p._limits[axis_key]
++                    a, b = p._limits.get(axis_key) or p._limits[axis]
+                     lo = a if a is None else convert_units(a)
+                     hi = b if b is None else convert_units(b)
+                     if isinstance(a, str):
+@@ -1644,6 +1642,9 @@ class Plotter:
+                         hi = cast(float, hi) + 0.5
+                     ax.set(**{f"{axis}lim": (lo, hi)})
+ 
++                if axis_key in self._scales:  # TODO when would it not be?
++                    self._scales[axis_key]._finalize(p, getattr(ax, f"{axis}axis"))
++
+         engine_default = None if p._target is not None else "tight"
+         layout_engine = p._layout_spec.get("engine", engine_default)
+         set_layout_engine(self._figure, layout_engine)
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index bbd71ec1..bd88baa9 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -101,6 +101,10 @@ class Scale:
+     ) -> Scale:
+         raise NotImplementedError()
+ 
++    def _finalize(self, p, axis: Axis) -> None:
++        """Perform scale-specific axis tweaks after adding artists."""
++        pass
++
+     def __call__(self, data: Series) -> ArrayLike:
+ 
+         trans_data: Series | NDArray | list
+@@ -227,6 +231,19 @@ class Nominal(Scale):
+ 
+         return new
+ 
++    def _finalize(self, p, axis: Axis) -> None:
++
++        ax = axis.axes
++        name = axis.axis_name
++        axis.grid(False, which="both")
++        if name not in p._limits:
++            nticks = len(axis.get_major_ticks())
++            lo, hi = -.5, nticks - .5
++            if name == "y":
++                lo, hi = hi, lo
++            set_lim = getattr(ax, f"set_{name}lim")
++            set_lim(lo, hi, auto=None)
++
+     def tick(self, locator: Locator | None = None):
+         """
+         Configure the selection of ticks for the scale's axis or legend.

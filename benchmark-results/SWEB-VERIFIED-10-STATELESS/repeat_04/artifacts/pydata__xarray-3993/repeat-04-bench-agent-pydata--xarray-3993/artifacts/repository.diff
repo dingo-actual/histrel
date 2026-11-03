@@ -1,0 +1,74 @@
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index 488d8baa..a2f858e8 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -55,6 +55,9 @@ New Features
+ - :py:meth:`DataArray.swap_dims` & :py:meth:`Dataset.swap_dims` now accept dims
+   in the form of kwargs as well as a dict, like most similar methods.
+   By `Maximilian Roos <https://github.com/max-sixty>`_.
++- Deprecated the ``dim`` keyword argument of :py:meth:`DataArray.integrate` in
++  favour of ``coord``, making the API consistent with :py:meth:`Dataset.integrate`.
++  By `Stephan Hoyer <https://github.com/shoyer>`_.
+ 
+ Bug fixes
+ ~~~~~~~~~
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 2fef3edb..a0424592 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -3481,18 +3481,26 @@ class DataArray(AbstractArray, DataWithCoords):
+         return self._from_temp_dataset(ds)
+ 
+     def integrate(
+-        self, dim: Union[Hashable, Sequence[Hashable]], datetime_unit: str = None
++        self,
++        coord: Union[Hashable, Sequence[Hashable]] = None,
++        datetime_unit: str = None,
++        *,
++        dim: Union[Hashable, Sequence[Hashable]] = None,
+     ) -> "DataArray":
+         """ integrate the array with the trapezoidal rule.
+ 
+         .. note::
+-            This feature is limited to simple cartesian geometry, i.e. dim
++            This feature is limited to simple cartesian geometry, i.e. coord
+             must be one dimensional.
+ 
+         Parameters
+         ----------
+-        dim : hashable, or sequence of hashable
++        coord : hashable, or sequence of hashable
+             Coordinate(s) used for the integration.
++
++        .. deprecated:: 0.17.0
++            The ``dim`` keyword argument is deprecated and will be removed in
++            a future version of xarray. Use ``coord`` instead.
+         datetime_unit : {"Y", "M", "W", "D", "h", "m", "s", "ms", "us", "ns", \
+                          "ps", "fs", "as"}, optional
+             Can be used to specify the unit if datetime coordinate is used.
+@@ -3528,7 +3536,24 @@ class DataArray(AbstractArray, DataWithCoords):
+         array([5.4, 6.6, 7.8])
+         Dimensions without coordinates: y
+         """
+-        ds = self._to_temp_dataset().integrate(dim, datetime_unit)
++        # Backwards compatibility: the `dim` keyword argument was renamed to
++        # `coord` to make the API consistent with `Dataset.integrate`.
++        if dim is not None:
++            if coord is not None:
++                raise TypeError(
++                    "Cannot specify both `coord` and `dim` for `integrate`. "
++                    "Use only `coord`; `dim` is deprecated."
++                )
++            warnings.warn(
++                "The `dim` argument to `DataArray.integrate` is deprecated; "
++                "use `coord` instead.",
++                FutureWarning,
++                stacklevel=2,
++            )
++            coord = dim
++        elif coord is None:
++            raise TypeError("integrate() missing 1 required argument: 'coord'")
++        ds = self._to_temp_dataset().integrate(coord, datetime_unit)
+         return self._from_temp_dataset(ds)
+ 
+     def unify_chunks(self) -> "DataArray":

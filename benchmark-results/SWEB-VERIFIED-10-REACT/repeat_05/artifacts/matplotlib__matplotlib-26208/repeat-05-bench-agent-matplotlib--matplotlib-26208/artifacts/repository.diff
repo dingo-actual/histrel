@@ -1,0 +1,27 @@
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 5203e3232c..6c2f00dda3 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -4441,6 +4441,12 @@ class _AxesBase(martist.Artist):
+         self.yaxis.tick_left()
+         ax2.xaxis.set_visible(False)
+         ax2.patch.set_visible(False)
++        # The twin's xaxis is shared with self's xaxis, but the unit
++        # machinery sets units on a per-axis basis; propagate the units
++        # now so that setting the same units again (which would otherwise
++        # trigger the 'units' callback, and hence a relim that cannot
++        # restore limits of artists such as Collections) is a no-op.
++        ax2.xaxis.units = self.xaxis.units
+         return ax2
+ 
+     def twiny(self):
+@@ -4470,6 +4476,9 @@ class _AxesBase(martist.Artist):
+         self.xaxis.tick_bottom()
+         ax2.yaxis.set_visible(False)
+         ax2.patch.set_visible(False)
++        # As in twinx: pre-propagate the units so that the later
++        # `set_units` call for the shared axis is a no-op.
++        ax2.yaxis.units = self.yaxis.units
+         return ax2
+ 
+     def get_shared_x_axes(self):

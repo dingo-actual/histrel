@@ -1,0 +1,345 @@
+{
+  "session_id": "repeat-03-bench-agent-astropy--astropy-7671",
+  "none": {
+    "tokens_input": 12250214,
+    "tokens_output": 598765,
+    "tokens_cache_read": 10915584,
+    "tokens_cache_write": 0,
+    "tokens_total": 12848979,
+    "cost_total": 0.82704452,
+    "cost_complete": true,
+    "cost_unknown_instances": 0,
+    "maximum_context": 74437
+  },
+  "total": {
+    "tokens_input": 12250214,
+    "tokens_output": 598765,
+    "tokens_cache_read": 10915584,
+    "tokens_cache_write": 0,
+    "tokens_total": 12848979,
+    "cost_total": 0.82704452,
+    "cost_complete": true,
+    "cost_unknown_instances": 0,
+    "maximum_context": 74437
+  },
+  "astropy__astropy-7671": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "astropy__astropy-7671",
+      "session_id": "repeat-03-bench-agent-astropy--astropy-7671"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-astropy--astropy-7671",
+      "tokens_input": 181628,
+      "tokens_output": 10161,
+      "tokens_cache_read": 132480,
+      "tokens_cache_write": 0,
+      "tokens_total": 191789,
+      "cost_total": 0.0164271,
+      "cost_complete": true,
+      "maximum_context": 15744
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-astropy--astropy-7671",
+      "tokens_input": 181628,
+      "tokens_output": 10161,
+      "tokens_cache_read": 132480,
+      "tokens_cache_write": 0,
+      "tokens_total": 191789,
+      "cost_total": 0.0164271,
+      "cost_complete": true,
+      "maximum_context": 15744
+    }
+  },
+  "django__django-10554": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "django__django-10554",
+      "session_id": "repeat-03-bench-agent-django--django-10554"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-django--django-10554",
+      "tokens_input": 2806108,
+      "tokens_output": 172007,
+      "tokens_cache_read": 2565504,
+      "tokens_cache_write": 0,
+      "tokens_total": 2978115,
+      "cost_total": 0.19905922,
+      "cost_complete": true,
+      "maximum_context": 67452
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-django--django-10554",
+      "tokens_input": 2806108,
+      "tokens_output": 172007,
+      "tokens_cache_read": 2565504,
+      "tokens_cache_write": 0,
+      "tokens_total": 2978115,
+      "cost_total": 0.19905922,
+      "cost_complete": true,
+      "maximum_context": 67452
+    }
+  },
+  "matplotlib__matplotlib-26208": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "matplotlib__matplotlib-26208",
+      "session_id": "repeat-03-bench-agent-matplotlib--matplotlib-26208"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-matplotlib--matplotlib-26208",
+      "tokens_input": 1375460,
+      "tokens_output": 51546,
+      "tokens_cache_read": 1213568,
+      "tokens_cache_write": 0,
+      "tokens_total": 1427006,
+      "cost_total": 0.08646383999999997,
+      "cost_complete": true,
+      "maximum_context": 38435
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-matplotlib--matplotlib-26208",
+      "tokens_input": 1375460,
+      "tokens_output": 51546,
+      "tokens_cache_read": 1213568,
+      "tokens_cache_write": 0,
+      "tokens_total": 1427006,
+      "cost_total": 0.08646383999999997,
+      "cost_complete": true,
+      "maximum_context": 38435
+    }
+  },
+  "mwaskom__seaborn-3069": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "mwaskom__seaborn-3069",
+      "session_id": "repeat-03-bench-agent-mwaskom--seaborn-3069"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-mwaskom--seaborn-3069",
+      "tokens_input": 2066009,
+      "tokens_output": 55986,
+      "tokens_cache_read": 1869312,
+      "tokens_cache_write": 0,
+      "tokens_total": 2121995,
+      "cost_total": 0.11357691000000003,
+      "cost_complete": true,
+      "maximum_context": 50338
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-mwaskom--seaborn-3069",
+      "tokens_input": 2066009,
+      "tokens_output": 55986,
+      "tokens_cache_read": 1869312,
+      "tokens_cache_write": 0,
+      "tokens_total": 2121995,
+      "cost_total": 0.11357691000000003,
+      "cost_complete": true,
+      "maximum_context": 50338
+    }
+  },
+  "pallets__flask-5014": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "pallets__flask-5014",
+      "session_id": "repeat-03-bench-agent-pallets--flask-5014"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-pallets--flask-5014",
+      "tokens_input": 113423,
+      "tokens_output": 3914,
+      "tokens_cache_read": 77312,
+      "tokens_cache_write": 0,
+      "tokens_total": 117337,
+      "cost_total": 0.009693009999999998,
+      "cost_complete": true,
+      "maximum_context": 10253
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-pallets--flask-5014",
+      "tokens_input": 113423,
+      "tokens_output": 3914,
+      "tokens_cache_read": 77312,
+      "tokens_cache_write": 0,
+      "tokens_total": 117337,
+      "cost_total": 0.009693009999999998,
+      "cost_complete": true,
+      "maximum_context": 10253
+    }
+  },
+  "pydata__xarray-3993": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "pydata__xarray-3993",
+      "session_id": "repeat-03-bench-agent-pydata--xarray-3993"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-pydata--xarray-3993",
+      "tokens_input": 989154,
+      "tokens_output": 29793,
+      "tokens_cache_read": 857856,
+      "tokens_cache_write": 0,
+      "tokens_total": 1018947,
+      "cost_total": 0.06032688,
+      "cost_complete": true,
+      "maximum_context": 26613
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-pydata--xarray-3993",
+      "tokens_input": 989154,
+      "tokens_output": 29793,
+      "tokens_cache_read": 857856,
+      "tokens_cache_write": 0,
+      "tokens_total": 1018947,
+      "cost_total": 0.06032688,
+      "cost_complete": true,
+      "maximum_context": 26613
+    }
+  },
+  "pytest-dev__pytest-7324": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "pytest-dev__pytest-7324",
+      "session_id": "repeat-03-bench-agent-pytest-dev--pytest-7324"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-pytest-dev--pytest-7324",
+      "tokens_input": 394855,
+      "tokens_output": 54843,
+      "tokens_cache_read": 315008,
+      "tokens_cache_write": 0,
+      "tokens_total": 449698,
+      "cost_total": 0.04884879,
+      "cost_complete": true,
+      "maximum_context": 20073
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-pytest-dev--pytest-7324",
+      "tokens_input": 394855,
+      "tokens_output": 54843,
+      "tokens_cache_read": 315008,
+      "tokens_cache_write": 0,
+      "tokens_total": 449698,
+      "cost_total": 0.04884879,
+      "cost_complete": true,
+      "maximum_context": 20073
+    }
+  },
+  "scikit-learn__scikit-learn-13496": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "scikit-learn__scikit-learn-13496",
+      "session_id": "repeat-03-bench-agent-scikit-learn--scikit-learn-13496"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-scikit-learn--scikit-learn-13496",
+      "tokens_input": 82746,
+      "tokens_output": 3057,
+      "tokens_cache_read": 50176,
+      "tokens_cache_write": 0,
+      "tokens_total": 85803,
+      "cost_total": 0.007919279999999999,
+      "cost_complete": true,
+      "maximum_context": 12864
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-scikit-learn--scikit-learn-13496",
+      "tokens_input": 82746,
+      "tokens_output": 3057,
+      "tokens_cache_read": 50176,
+      "tokens_cache_write": 0,
+      "tokens_total": 85803,
+      "cost_total": 0.007919279999999999,
+      "cost_complete": true,
+      "maximum_context": 12864
+    }
+  },
+  "sphinx-doc__sphinx-9461": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "session_id": "repeat-03-bench-agent-sphinx-doc--sphinx-9461"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-sphinx-doc--sphinx-9461",
+      "tokens_input": 1380733,
+      "tokens_output": 75484,
+      "tokens_cache_read": 1216640,
+      "tokens_cache_write": 0,
+      "tokens_total": 1456217,
+      "cost_total": 0.09885515,
+      "cost_complete": true,
+      "maximum_context": 47129
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-sphinx-doc--sphinx-9461",
+      "tokens_input": 1380733,
+      "tokens_output": 75484,
+      "tokens_cache_read": 1216640,
+      "tokens_cache_write": 0,
+      "tokens_total": 1456217,
+      "cost_total": 0.09885515,
+      "cost_complete": true,
+      "maximum_context": 47129
+    }
+  },
+  "sympy__sympy-13878": {
+    "identity": {
+      "run_name": "repeat_03",
+      "repetition": 3,
+      "mode": "stateless",
+      "agent_type": "bench-agent",
+      "instance_id": "sympy__sympy-13878",
+      "session_id": "repeat-03-bench-agent-sympy--sympy-13878"
+    },
+    "total": {
+      "session_id": "repeat-03-bench-agent-sympy--sympy-13878",
+      "tokens_input": 2860098,
+      "tokens_output": 141974,
+      "tokens_cache_read": 2617728,
+      "tokens_cache_write": 0,
+      "tokens_total": 3002072,
+      "cost_total": 0.18587434,
+      "cost_complete": true,
+      "maximum_context": 74437
+    },
+    "none": {
+      "session_id": "repeat-03-bench-agent-sympy--sympy-13878",
+      "tokens_input": 2860098,
+      "tokens_output": 141974,
+      "tokens_cache_read": 2617728,
+      "tokens_cache_write": 0,
+      "tokens_total": 3002072,
+      "cost_total": 0.18587434,
+      "cost_complete": true,
+      "maximum_context": 74437
+    }
+  }
+}

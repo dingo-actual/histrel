@@ -1,0 +1,628 @@
+{
+  "total_cost": 0.17261364999999998,
+  "model_cost": 0.17261364999999998,
+  "compaction_cost": 0.0,
+  "is_complete": true,
+  "call_costs": [
+    {
+      "provider_request_id": "chatcmpl-5074e137",
+      "call_kind": "model",
+      "input_tokens": 3052,
+      "output_tokens": 948,
+      "cached_tokens": 0,
+      "reasoning_tokens": 881,
+      "cost_usd": 0.0009318,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-6b8f2ba1",
+      "call_kind": "model",
+      "input_tokens": 6294,
+      "output_tokens": 528,
+      "cached_tokens": 0,
+      "reasoning_tokens": 414,
+      "cost_usd": 0.0012081,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-1b190574",
+      "call_kind": "model",
+      "input_tokens": 7933,
+      "output_tokens": 89,
+      "cached_tokens": 0,
+      "reasoning_tokens": 22,
+      "cost_usd": 0.00123445,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-561ffccd",
+      "call_kind": "model",
+      "input_tokens": 8551,
+      "output_tokens": 125,
+      "cached_tokens": 4736,
+      "reasoning_tokens": 25,
+      "cost_usd": 0.00077683,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-f40767a9",
+      "call_kind": "model",
+      "input_tokens": 10021,
+      "output_tokens": 6247,
+      "cached_tokens": 4736,
+      "reasoning_tokens": 6078,
+      "cost_usd": 0.00405833,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-c7ae46dd",
+      "call_kind": "model",
+      "input_tokens": 12083,
+      "output_tokens": 6886,
+      "cached_tokens": 8192,
+      "reasoning_tokens": 6730,
+      "cost_usd": 0.00427241,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-c15500c9",
+      "call_kind": "model",
+      "input_tokens": 13913,
+      "output_tokens": 2436,
+      "cached_tokens": 8192,
+      "reasoning_tokens": 1898,
+      "cost_usd": 0.00232191,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-a1cf3cde",
+      "call_kind": "model",
+      "input_tokens": 15753,
+      "output_tokens": 205,
+      "cached_tokens": 10496,
+      "reasoning_tokens": 150,
+      "cost_usd": 0.0012059299999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-93c6590e",
+      "call_kind": "model",
+      "input_tokens": 17112,
+      "output_tokens": 161,
+      "cached_tokens": 10496,
+      "reasoning_tokens": 41,
+      "cost_usd": 0.00138778,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-aa0af176",
+      "call_kind": "model",
+      "input_tokens": 17316,
+      "output_tokens": 366,
+      "cached_tokens": 12288,
+      "reasoning_tokens": 232,
+      "cost_usd": 0.00130584,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-d7fd742c",
+      "call_kind": "model",
+      "input_tokens": 19384,
+      "output_tokens": 111,
+      "cached_tokens": 15488,
+      "reasoning_tokens": 28,
+      "cost_usd": 0.00110454,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-ed1fba32",
+      "call_kind": "model",
+      "input_tokens": 19799,
+      "output_tokens": 150,
+      "cached_tokens": 16384,
+      "reasoning_tokens": 56,
+      "cost_usd": 0.00107877,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-9f33e645",
+      "call_kind": "model",
+      "input_tokens": 19954,
+      "output_tokens": 544,
+      "cached_tokens": 17792,
+      "reasoning_tokens": 26,
+      "cost_usd": 0.00113006,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-e45a05ff",
+      "call_kind": "model",
+      "input_tokens": 20603,
+      "output_tokens": 455,
+      "cached_tokens": 17792,
+      "reasoning_tokens": 424,
+      "cost_usd": 0.00118291,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-66090b39",
+      "call_kind": "model",
+      "input_tokens": 21569,
+      "output_tokens": 8851,
+      "cached_tokens": 18176,
+      "reasoning_tokens": 8224,
+      "cost_usd": 0.0054797299999999995,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-8e24305f",
+      "call_kind": "model",
+      "input_tokens": 23331,
+      "output_tokens": 9610,
+      "cached_tokens": 18176,
+      "reasoning_tokens": 9082,
+      "cost_usd": 0.006123529999999999,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-7a248b78",
+      "call_kind": "model",
+      "input_tokens": 24262,
+      "output_tokens": 15225,
+      "cached_tokens": 18176,
+      "reasoning_tokens": 14302,
+      "cost_usd": 0.009070680000000001,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-1ae7b420",
+      "call_kind": "model",
+      "input_tokens": 25875,
+      "output_tokens": 13709,
+      "cached_tokens": 19072,
+      "reasoning_tokens": 13584,
+      "cost_usd": 0.00844711,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-6dc42adc",
+      "call_kind": "model",
+      "input_tokens": 29121,
+      "output_tokens": 4787,
+      "cached_tokens": 22656,
+      "reasoning_tokens": 4747,
+      "cost_usd": 0.00404293,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-a08515e8",
+      "call_kind": "model",
+      "input_tokens": 29303,
+      "output_tokens": 11060,
+      "cached_tokens": 24576,
+      "reasoning_tokens": 10912,
+      "cost_usd": 0.00697633,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-0ad15366",
+      "call_kind": "model",
+      "input_tokens": 30510,
+      "output_tokens": 17370,
+      "cached_tokens": 27520,
+      "reasoning_tokens": 17226,
+      "cost_usd": 0.0099591,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-9071a88d",
+      "call_kind": "model",
+      "input_tokens": 32315,
+      "output_tokens": 3243,
+      "cached_tokens": 22656,
+      "reasoning_tokens": 3108,
+      "cost_usd": 0.0037500299999999997,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-bfccde71",
+      "call_kind": "model",
+      "input_tokens": 32529,
+      "output_tokens": 7802,
+      "cached_tokens": 27520,
+      "reasoning_tokens": 7539,
+      "cost_usd": 0.00547795,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-531de7a7",
+      "call_kind": "model",
+      "input_tokens": 32761,
+      "output_tokens": 1019,
+      "cached_tokens": 30720,
+      "reasoning_tokens": 873,
+      "cost_usd": 0.00173725,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-ff603f30",
+      "call_kind": "model",
+      "input_tokens": 34268,
+      "output_tokens": 327,
+      "cached_tokens": 30720,
+      "reasoning_tokens": 220,
+      "cost_usd": 0.0016172999999999997,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-7bc044c2",
+      "call_kind": "model",
+      "input_tokens": 34534,
+      "output_tokens": 6821,
+      "cached_tokens": 30976,
+      "reasoning_tokens": 6563,
+      "cost_usd": 0.0048734799999999995,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-9c73a10e",
+      "call_kind": "model",
+      "input_tokens": 35464,
+      "output_tokens": 6122,
+      "cached_tokens": 32768,
+      "reasoning_tokens": 5874,
+      "cost_usd": 0.0044484400000000006,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-3cd9df06",
+      "call_kind": "model",
+      "input_tokens": 35987,
+      "output_tokens": 2337,
+      "cached_tokens": 32768,
+      "reasoning_tokens": 2036,
+      "cost_usd": 0.00263439,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-5a45af18",
+      "call_kind": "model",
+      "input_tokens": 36736,
+      "output_tokens": 3311,
+      "cached_tokens": 32768,
+      "reasoning_tokens": 3103,
+      "cost_usd": 0.0032337399999999997,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-2ebb094a",
+      "call_kind": "model",
+      "input_tokens": 36885,
+      "output_tokens": 2787,
+      "cached_tokens": 33792,
+      "reasoning_tokens": 2581,
+      "cost_usd": 0.00287121,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-84b9330c",
+      "call_kind": "model",
+      "input_tokens": 37399,
+      "output_tokens": 7045,
+      "cached_tokens": 35072,
+      "reasoning_tokens": 6834,
+      "cost_usd": 0.00492371,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-8ea8b90a",
+      "call_kind": "model",
+      "input_tokens": 38888,
+      "output_tokens": 1305,
+      "cached_tokens": 35072,
+      "reasoning_tokens": 984,
+      "cost_usd": 0.00227706,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-06b5ca3c",
+      "call_kind": "model",
+      "input_tokens": 40850,
+      "output_tokens": 11135,
+      "cached_tokens": 35072,
+      "reasoning_tokens": 10967,
+      "cost_usd": 0.00748636,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-6ba0f70b",
+      "call_kind": "model",
+      "input_tokens": 41939,
+      "output_tokens": 4614,
+      "cached_tokens": 37248,
+      "reasoning_tokens": 4389,
+      "cost_usd": 0.00412809,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-b5436d1e",
+      "call_kind": "model",
+      "input_tokens": 42505,
+      "output_tokens": 975,
+      "cached_tokens": 37248,
+      "reasoning_tokens": 819,
+      "cost_usd": 0.00239349,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-d1719fe2",
+      "call_kind": "model",
+      "input_tokens": 43771,
+      "output_tokens": 617,
+      "cached_tokens": 40960,
+      "reasoning_tokens": 73,
+      "cost_usd": 0.0019589499999999997,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-6b38a356",
+      "call_kind": "routine",
+      "input_tokens": 639,
+      "output_tokens": 909,
+      "cached_tokens": 0,
+      "reasoning_tokens": 631,
+      "cost_usd": 0.00055035,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-c68fc6af",
+      "call_kind": "routine",
+      "input_tokens": 489,
+      "output_tokens": 698,
+      "cached_tokens": 0,
+      "reasoning_tokens": 571,
+      "cost_usd": 0.00042235000000000005,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-e3c20cec",
+      "call_kind": "model",
+      "input_tokens": 44262,
+      "output_tokens": 170,
+      "cached_tokens": 40960,
+      "reasoning_tokens": 134,
+      "cost_usd": 0.0018091,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-29f6ac15",
+      "call_kind": "model",
+      "input_tokens": 45026,
+      "output_tokens": 386,
+      "cached_tokens": 40960,
+      "reasoning_tokens": 282,
+      "cost_usd": 0.0020317,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-04061bf2",
+      "call_kind": "model",
+      "input_tokens": 45101,
+      "output_tokens": 765,
+      "cached_tokens": 42112,
+      "reasoning_tokens": 57,
+      "cost_usd": 0.00209421,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-f45fc1e4",
+      "call_kind": "model",
+      "input_tokens": 45368,
+      "output_tokens": 572,
+      "cached_tokens": 43264,
+      "reasoning_tokens": 128,
+      "cost_usd": 0.0018995199999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-9f65dd3c",
+      "call_kind": "routine",
+      "input_tokens": 820,
+      "output_tokens": 2080,
+      "cached_tokens": 0,
+      "reasoning_tokens": 1645,
+      "cost_usd": 0.001163,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-74769dc6",
+      "call_kind": "model",
+      "input_tokens": 45368,
+      "output_tokens": 462,
+      "cached_tokens": 43520,
+      "reasoning_tokens": 0,
+      "cost_usd": 0.0018138,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-a5960de5",
+      "call_kind": "routine",
+      "input_tokens": 820,
+      "output_tokens": 1223,
+      "cached_tokens": 768,
+      "reasoning_tokens": 788,
+      "cost_usd": 0.00064234,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-0eb3a873",
+      "call_kind": "model",
+      "input_tokens": 45808,
+      "output_tokens": 103,
+      "cached_tokens": 43520,
+      "reasoning_tokens": 19,
+      "cost_usd": 0.0017002999999999999,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-0bce87bc",
+      "call_kind": "model",
+      "input_tokens": 45965,
+      "output_tokens": 57,
+      "cached_tokens": 43520,
+      "reasoning_tokens": 37,
+      "cost_usd": 0.0017008499999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-49b21ae7",
+      "call_kind": "model",
+      "input_tokens": 46192,
+      "output_tokens": 200,
+      "cached_tokens": 44288,
+      "reasoning_tokens": 128,
+      "cost_usd": 0.0017142399999999997,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-d86728f3",
+      "call_kind": "model",
+      "input_tokens": 46377,
+      "output_tokens": 266,
+      "cached_tokens": 44288,
+      "reasoning_tokens": 122,
+      "cost_usd": 0.0017749899999999997,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-d394254a",
+      "call_kind": "model",
+      "input_tokens": 46611,
+      "output_tokens": 67,
+      "cached_tokens": 44544,
+      "reasoning_tokens": 12,
+      "cost_usd": 0.00167987,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-60e05699",
+      "call_kind": "model",
+      "input_tokens": 46781,
+      "output_tokens": 238,
+      "cached_tokens": 44800,
+      "reasoning_tokens": 69,
+      "cost_usd": 0.00176015,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-42d8b311",
+      "call_kind": "model",
+      "input_tokens": 47199,
+      "output_tokens": 568,
+      "cached_tokens": 44800,
+      "reasoning_tokens": 362,
+      "cost_usd": 0.0019878499999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-aa5f1470",
+      "call_kind": "model",
+      "input_tokens": 47412,
+      "output_tokens": 219,
+      "cached_tokens": 45184,
+      "reasoning_tokens": 28,
+      "cost_usd": 0.00179922,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-d5265994",
+      "call_kind": "model",
+      "input_tokens": 47808,
+      "output_tokens": 97,
+      "cached_tokens": 45184,
+      "reasoning_tokens": 36,
+      "cost_usd": 0.00179762,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-23db972f",
+      "call_kind": "model",
+      "input_tokens": 48006,
+      "output_tokens": 142,
+      "cached_tokens": 45184,
+      "reasoning_tokens": 46,
+      "cost_usd": 0.0018498199999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-25f7c111",
+      "call_kind": "model",
+      "input_tokens": 48356,
+      "output_tokens": 1066,
+      "cached_tokens": 46208,
+      "reasoning_tokens": 258,
+      "cost_usd": 0.00224144,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-ef75b934",
+      "call_kind": "model",
+      "input_tokens": 49214,
+      "output_tokens": 159,
+      "cached_tokens": 46208,
+      "reasoning_tokens": 60,
+      "cost_usd": 0.0019166399999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-324866b8",
+      "call_kind": "model",
+      "input_tokens": 49421,
+      "output_tokens": 883,
+      "cached_tokens": 46208,
+      "reasoning_tokens": 165,
+      "cost_usd": 0.00230969,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-c7ad9500",
+      "call_kind": "model",
+      "input_tokens": 50301,
+      "output_tokens": 279,
+      "cached_tokens": 46720,
+      "reasoning_tokens": 91,
+      "cost_usd": 0.00207825,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-72add6b7",
+      "call_kind": "model",
+      "input_tokens": 50536,
+      "output_tokens": 213,
+      "cached_tokens": 47744,
+      "reasoning_tokens": 53,
+      "cost_usd": 0.0019576199999999998,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-d669a28a",
+      "call_kind": "model",
+      "input_tokens": 50731,
+      "output_tokens": 165,
+      "cached_tokens": 48640,
+      "reasoning_tokens": 99,
+      "cost_usd": 0.00185535,
+      "usage_available": true
+    },
+    {
+      "provider_request_id": "chatcmpl-78c469c0",
+      "call_kind": "model",
+      "input_tokens": 50844,
+      "output_tokens": 2449,
+      "cached_tokens": 49152,
+      "reasoning_tokens": 1894,
+      "cost_usd": 0.00295286,
+      "usage_available": true
+    }
+  ]
+}

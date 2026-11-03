@@ -1,0 +1,26 @@
+{
+  "read": {
+    "count": 6,
+    "successes": 6,
+    "failures": 0,
+    "total_elapsed_ms": 1
+  },
+  "bash": {
+    "count": 57,
+    "successes": 51,
+    "failures": 6,
+    "total_elapsed_ms": 22529
+  },
+  "search": {
+    "count": 1,
+    "successes": 1,
+    "failures": 0,
+    "total_elapsed_ms": 40
+  },
+  "edit": {
+    "count": 8,
+    "successes": 4,
+    "failures": 4,
+    "total_elapsed_ms": 283336
+  }
+}

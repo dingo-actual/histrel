@@ -1,0 +1,15 @@
+{
+  "finalization_status": "complete",
+  "artifact_hashes": {
+    "manifest.resolved.json": "59862a2371250417b51e1e406ce486784db7ac49ca15fd4133513e1ffcb52181",
+    "messages.jsonl": "0ab980c6ae8c687deb75a4f43681daf48deca4ed3d3646c32c46d8f3a5e04a5f",
+    "token_usage_calls.jsonl": "4838eacc5b2f621454391bc652c5fed6dcaa9aa978f49a13cf93d903529ae4d9",
+    "costs.json": "d3049719b9cc90c62d7776155887cfbd9b1e14f6129852fd7d1539a0ad88772a",
+    "timings.json": "506dba1c3aa8b8d91488cb3dfc603eecb7c805946f6681e9bea7d25060948bd8",
+    "tool_metrics.json": "afd4c7f431581e501e13b889a4ea29d9b77fb7093151bcd7906bb644bd009799",
+    "source_context.json": "ce738476ec447942e98c91c51fc65315b0b436bf35ee712eff4f71c9bb92cfcd",
+    "outcome.json": "9d9c73009d661b88dba030b415ed55f0024416fddb99c84270a227deebafcdd1",
+    "repository.diff": "5551b643a53091fb8b1d51376eec06da675731591881d3a7e2d21a534a060e78",
+    "compactions.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "accounts/fireworks/models/glm-5p3-flash": {
+    "uncached_input_per_1m": 0.15,
+    "cached_input_per_1m": 0.03,
+    "output_per_1m": 0.5
+  }
+}

@@ -1,0 +1,47 @@
+diff --git a/docs/blueprints.rst b/docs/blueprints.rst
+index d5cf3d82..96c89ac0 100644
+--- a/docs/blueprints.rst
++++ b/docs/blueprints.rst
+@@ -313,3 +313,7 @@ at the application level using the ``request`` proxy object::
+             return ex
+ 
+ See :doc:`/errorhandling`.
++
++.. versionchanged:: 2.0.1
++    Blueprint names may not be empty or contain ``.`` characters, as those are
++    reserved for nested blueprint names.
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index eb50585d..15cae154 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -131,7 +131,8 @@ class Blueprint(Scaffold):
+     See :doc:`/blueprints` for more information.
+ 
+     :param name: The name of the blueprint. Will be prepended to each
+-        endpoint name.
++        endpoint name. May not be empty or contain ``.`` characters, as
++        those are reserved for nested blueprint names.
+     :param import_name: The name of the blueprint package, usually
+         ``__name__``. This helps locate the ``root_path`` for the
+         blueprint.
+@@ -190,6 +191,9 @@ class Blueprint(Scaffold):
+             root_path=root_path,
+         )
+ 
++        if not name:
++            raise ValueError("'name' may not be empty.")
++
+         if "." in name:
+             raise ValueError("'name' may not contain a dot '.' character.")
+ 
+@@ -296,6 +300,10 @@ class Blueprint(Scaffold):
+         """
+         name_prefix = options.get("name_prefix", "")
+         self_name = options.get("name", self.name)
++
++        if not self_name:
++            raise ValueError("'name' may not be empty.")
++
+         name = f"{name_prefix}.{self_name}".lstrip(".")
+ 
+         if name in app.blueprints:

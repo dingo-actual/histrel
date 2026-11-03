@@ -1,0 +1,61 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 2fef3edb..7b64e8fb 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -3481,17 +3481,17 @@ class DataArray(AbstractArray, DataWithCoords):
+         return self._from_temp_dataset(ds)
+ 
+     def integrate(
+-        self, dim: Union[Hashable, Sequence[Hashable]], datetime_unit: str = None
++        self, coord=None, datetime_unit=None, *, dim=None
+     ) -> "DataArray":
+         """ integrate the array with the trapezoidal rule.
+ 
+         .. note::
+-            This feature is limited to simple cartesian geometry, i.e. dim
++            This feature is limited to simple cartesian geometry, i.e. coord
+             must be one dimensional.
+ 
+         Parameters
+         ----------
+-        dim : hashable, or sequence of hashable
++        coord : hashable, or sequence of hashable
+             Coordinate(s) used for the integration.
+         datetime_unit : {"Y", "M", "W", "D", "h", "m", "s", "ms", "us", "ns", \
+                          "ps", "fs", "as"}, optional
+@@ -3528,7 +3528,21 @@ class DataArray(AbstractArray, DataWithCoords):
+         array([5.4, 6.6, 7.8])
+         Dimensions without coordinates: y
+         """
+-        ds = self._to_temp_dataset().integrate(dim, datetime_unit)
++        # TODO: move this into the Dataset method.
++        if dim is not None:
++            if coord is not None:
++                raise ValueError("Can only provide one of coord or dim")
++            warnings.warn(
++                "The `dim` argument has been renamed to `coord` in order to be "
++                "consistent with the rest of xarray. This alias will be removed "
++                "in a future version.",
++                PendingDeprecationWarning,
++                stacklevel=2,
++            )
++            coord = dim
++        if coord is None:
++            raise ValueError("No value for coord was provided.")
++        ds = self._to_temp_dataset().integrate(coord, datetime_unit)
+         return self._from_temp_dataset(ds)
+ 
+     def unify_chunks(self) -> "DataArray":
+diff --git a/xarray/tests/test_units.py b/xarray/tests/test_units.py
+index bb3127e9..76dd830d 100644
+--- a/xarray/tests/test_units.py
++++ b/xarray/tests/test_units.py
+@@ -3681,7 +3681,7 @@ class TestDataArray:
+         (
+             method("diff", dim="x"),
+             method("differentiate", coord="x"),
+-            method("integrate", dim="x"),
++            method("integrate", coord="x"),
+             method("quantile", q=[0.25, 0.75]),
+             method("reduce", func=np.sum, dim="x"),
+             pytest.param(lambda x: x.dot(x), id="method_dot"),

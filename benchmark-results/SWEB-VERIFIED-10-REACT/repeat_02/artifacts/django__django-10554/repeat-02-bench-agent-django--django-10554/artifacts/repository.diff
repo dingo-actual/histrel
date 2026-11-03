@@ -1,0 +1,41 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 08d7faf194..667809c1c5 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -328,6 +328,14 @@ class Query(BaseExpression):
+             obj.subq_aliases = self.subq_aliases.copy()
+         obj.used_aliases = self.used_aliases.copy()
+         obj._filtered_relations = self._filtered_relations.copy()
++        if self.combined_queries:
++            # _combinator_query() stores combined queries by reference on the
++            # query in place at the time of the call; since values_list() may
++            # mutate a combined query's select clause in place, combined
++            # queries must be cloned when the query itself is cloned.
++            obj.combined_queries = tuple(
++                query.chain() for query in self.combined_queries
++            )
+         # Clear the cached_property
+         try:
+             del obj.base_table
+@@ -2061,6 +2069,21 @@ class Query(BaseExpression):
+ 
+         self.values_select = tuple(field_names)
+         self.add_fields(field_names, True)
++        # Propagate the select changes to combined queries, since their
++        # select clauses must match the outer query's at compile time.
++        if self.combined_queries:
++            for query in self.combined_queries:
++                if not query.values_select:
++                    # Propagate the effective ordering state to the combined
++                    # queries as well: their ordering is not used in the
++                    # compound query, but a non-empty order_by would break
++                    # later re-evaluations on backends that disallow ORDER BY
++                    # in the subqueries of compound statements.
++                    if not self.default_ordering:
++                        query.default_ordering = False
++                        query.clear_ordering(force_empty=True)
++                    if self.values_select:
++                        query.set_values(self.values_select)
+ 
+     @property
+     def annotation_select(self):

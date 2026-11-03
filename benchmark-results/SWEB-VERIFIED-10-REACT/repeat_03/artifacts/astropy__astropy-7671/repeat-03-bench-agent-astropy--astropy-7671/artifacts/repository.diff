@@ -1,0 +1,66 @@
+diff --git a/astropy/utils/introspection.py b/astropy/utils/introspection.py
+index 3e784f9fc..9474bfc97 100644
+--- a/astropy/utils/introspection.py
++++ b/astropy/utils/introspection.py
+@@ -4,6 +4,7 @@
+ 
+ 
+ import inspect
++import re
+ import types
+ import importlib
+ from distutils.version import LooseVersion
+@@ -139,6 +140,15 @@ def minversion(module, version, inclusive=True, version_path='__version__'):
+     else:
+         have_version = resolve_name(module.__name__, version_path)
+ 
++    from distutils.version import LooseVersion
++    # LooseVersion raises a TypeError when strings like dev, rc1 are part
++    # of the version number. Match the dotted numbers only. Regex taken
++    # from PEP440, https://www.python.org/dev/peps/pep-0440/, Appendix B
++    expr = r'^([1-9]\d*!)?(0|[1-9]\d*)(\.(0|[1-9]\d*))*'
++    m = re.match(expr, version)
++    if m:
++        version = m.group(0)
++
+     if inclusive:
+         return LooseVersion(have_version) >= LooseVersion(version)
+     else:
+diff --git a/astropy/utils/tests/test_introspection.py b/astropy/utils/tests/test_introspection.py
+index d8262d458..fd754889e 100644
+--- a/astropy/utils/tests/test_introspection.py
++++ b/astropy/utils/tests/test_introspection.py
+@@ -73,3 +73,33 @@ def test_minversion():
+         assert minversion(test_module, version)
+     for version in bad_versions:
+         assert not minversion(test_module, version)
++
++
++@pytest.mark.parametrize('version, expected', [
++    ('1.14.0', True),
++    # pre-release suffixes are stripped by minversion, so '1.14.0.dev' and
++    # '1.14.0rc1' compare equal to '1.14.0'
++    ('1.14.0.dev', True),
++    ('1.14.0rc1', True),
++    ('1.13.0', True),
++    ('1.13.0.dev', True),
++    ('1.13.0rc1', True),
++    ('1.15.0', False),
++    ('1.15.0.dev', False),
++    ('1.15.0rc1', False),
++])
++def test_minversion_with_dev_version(version, expected):
++    """Regression test for #7739: LooseVersion raises a TypeError on
++    comparisons like '1.14.3' >= '1.14dev' unless the non-numeric part is
++    stripped.
++    """
++    from types import ModuleType
++    test_module = ModuleType(str("test_module"))
++    test_module.__version__ = '1.14.1'
++    assert minversion(test_module, version) is expected
++    assert minversion(test_module, version, inclusive=False) is expected
++
++    # Exact equality should satisfy the inclusive, but not the exclusive,
++    # comparison
++    assert minversion(test_module, '1.14.1')
++    assert not minversion(test_module, '1.14.1', inclusive=False)

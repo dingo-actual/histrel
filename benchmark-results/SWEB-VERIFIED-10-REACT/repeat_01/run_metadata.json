@@ -1,0 +1,22 @@
+{
+  "dataset_id": "princeton-nlp/SWE-bench_Verified",
+  "instance_ids": [
+    "astropy__astropy-7671",
+    "django__django-10554",
+    "matplotlib__matplotlib-26208",
+    "mwaskom__seaborn-3069",
+    "pallets__flask-5014",
+    "pydata__xarray-3993",
+    "pytest-dev__pytest-7324",
+    "scikit-learn__scikit-learn-13496",
+    "sphinx-doc__sphinx-9461",
+    "sympy__sympy-13878"
+  ],
+  "output_dir": "/home/ryan/projects/histrel/benchmark/results/SWEB-VERIFIED-10-REACT/repeat_01",
+  "predictions_files": [
+    "bench_agent_predictions.jsonl"
+  ],
+  "run_name": "repeat_01",
+  "split": "test",
+  "timestamp": "2026-11-02T13:37:12.010357+00:00"
+}

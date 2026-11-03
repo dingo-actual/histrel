@@ -1,0 +1,4 @@
+{
+  "status": "budget_exhausted",
+  "reason": "token_budget (3000000) exhausted: 2986156 tokens used, working limit 2975000 after 25000 reserved for finalization"
+}

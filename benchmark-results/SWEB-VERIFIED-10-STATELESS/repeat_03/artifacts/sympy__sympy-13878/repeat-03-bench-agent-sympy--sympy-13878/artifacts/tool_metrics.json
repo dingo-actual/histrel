@@ -1,0 +1,20 @@
+{
+  "read": {
+    "count": 2,
+    "successes": 2,
+    "failures": 0,
+    "total_elapsed_ms": 0
+  },
+  "bash": {
+    "count": 82,
+    "successes": 75,
+    "failures": 7,
+    "total_elapsed_ms": 315715
+  },
+  "edit": {
+    "count": 7,
+    "successes": 7,
+    "failures": 0,
+    "total_elapsed_ms": 294978
+  }
+}

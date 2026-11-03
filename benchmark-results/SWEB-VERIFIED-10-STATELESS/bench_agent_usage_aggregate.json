@@ -1,0 +1,621 @@
+{
+  "instances": {
+    "astropy__astropy-7671": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0257,
+          "median": 0.029,
+          "sum": 0.1285
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 159.6233,
+          "median": 163.6293,
+          "sum": 798.1163
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 16458.0,
+          "median": 16187.0,
+          "sum": 82290.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 192179.2,
+          "median": 152064.0,
+          "sum": 960896.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 252060.0,
+          "median": 216670.0,
+          "sum": 1260300.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 21913.8,
+          "median": 24122.0,
+          "sum": 109569.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 273973.8,
+          "median": 246189.0,
+          "sum": 1369869.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "django__django-10554": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.161,
+          "median": 0.1463,
+          "sum": 0.8048
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 1080.3905,
+          "median": 1040.9141,
+          "sum": 5401.9525
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 52831.8,
+          "median": 49833.0,
+          "sum": 264159.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 1796531.2,
+          "median": 1619456.0,
+          "sum": 8982656.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 1998559.0,
+          "median": 1803241.0,
+          "sum": 9992795.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 153539.4,
+          "median": 142973.0,
+          "sum": 767697.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 2152098.4,
+          "median": 1940871.0,
+          "sum": 10760492.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "matplotlib__matplotlib-26208": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0884,
+          "median": 0.0865,
+          "sum": 0.4422
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 609.6739,
+          "median": 557.5155,
+          "sum": 3048.3696
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 36181.0,
+          "median": 38435.0,
+          "sum": 180905.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 1052108.8,
+          "median": 1213568.0,
+          "sum": 5260544.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 1205231.4,
+          "median": 1375460.0,
+          "sum": 6026157.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 67820.2,
+          "median": 54394.0,
+          "sum": 339101.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 1273051.6,
+          "median": 1427006.0,
+          "sum": 6365258.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "mwaskom__seaborn-3069": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0752,
+          "median": 0.0824,
+          "sum": 0.3758
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 503.7954,
+          "median": 579.6176,
+          "sum": 2518.9772
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 35770.4,
+          "median": 34232.0,
+          "sum": 178852.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 1039280.0,
+          "median": 1176576.0,
+          "sum": 5196400.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 1183206.0,
+          "median": 1344172.0,
+          "sum": 5916030.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 44766.2,
+          "median": 44010.0,
+          "sum": 223831.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 1227972.2,
+          "median": 1388182.0,
+          "sum": 6139861.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "pallets__flask-5014": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0194,
+          "median": 0.0215,
+          "sum": 0.097
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 114.7089,
+          "median": 114.8332,
+          "sum": 573.5444
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 13166.2,
+          "median": 14226.0,
+          "sum": 65831.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 114892.8,
+          "median": 116864.0,
+          "sum": 574464.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 169275.2,
+          "median": 172148.0,
+          "sum": 846376.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 15591.4,
+          "median": 18233.0,
+          "sum": 77957.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 184866.6,
+          "median": 191583.0,
+          "sum": 924333.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "pydata__xarray-3993": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0446,
+          "median": 0.0515,
+          "sum": 0.2232
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 342.5547,
+          "median": 424.2032,
+          "sum": 1712.7734
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 24988.6,
+          "median": 26613.0,
+          "sum": 124943.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 570496.0,
+          "median": 615424.0,
+          "sum": 2852480.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 673001.4,
+          "median": 738147.0,
+          "sum": 3365007.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 24302.4,
+          "median": 18366.0,
+          "sum": 121512.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 697303.8,
+          "median": 779749.0,
+          "sum": 3486519.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "pytest-dev__pytest-7324": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0333,
+          "median": 0.0321,
+          "sum": 0.1664
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 223.032,
+          "median": 177.8751,
+          "sum": 1115.1602
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 18607.6,
+          "median": 18786.0,
+          "sum": 93038.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 228044.8,
+          "median": 201984.0,
+          "sum": 1140224.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 296781.6,
+          "median": 267375.0,
+          "sum": 1483908.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 32258.6,
+          "median": 28627.0,
+          "sum": 161293.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 329040.2,
+          "median": 290006.0,
+          "sum": 1645201.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "scikit-learn__scikit-learn-13496": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0339,
+          "median": 0.0446,
+          "sum": 0.1693
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 232.5089,
+          "median": 213.9926,
+          "sum": 1162.5443
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 22210.4,
+          "median": 23089.0,
+          "sum": 111052.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 430540.8,
+          "median": 459392.0,
+          "sum": 2152704.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 515055.2,
+          "median": 550489.0,
+          "sum": 2575276.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 16513.4,
+          "median": 11551.0,
+          "sum": 82567.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 531568.6,
+          "median": 586455.0,
+          "sum": 2657843.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "sphinx-doc__sphinx-9461": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.0925,
+          "median": 0.0975,
+          "sum": 0.4627
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 466.7047,
+          "median": 513.61,
+          "sum": 2333.5234
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 44833.0,
+          "median": 47129.0,
+          "sum": 224165.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 1184102.4,
+          "median": 1216640.0,
+          "sum": 5920512.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 1350423.8,
+          "median": 1380733.0,
+          "sum": 6752119.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 64154.4,
+          "median": 75484.0,
+          "sum": 320772.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 1414578.2,
+          "median": 1456217.0,
+          "sum": 7072891.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    },
+    "sympy__sympy-13878": {
+      "cost_complete": true,
+      "count": 5,
+      "metrics": {
+        "cost_total": {
+          "count": 5,
+          "mean": 0.1462,
+          "median": 0.1683,
+          "sum": 0.7309
+        },
+        "execution_time": {
+          "count": 5,
+          "mean": 1019.2978,
+          "median": 1153.4538,
+          "sum": 5096.4889
+        },
+        "maximum_context": {
+          "count": 5,
+          "mean": 54626.0,
+          "median": 57824.0,
+          "sum": 273130.0
+        },
+        "tokens_cache_read": {
+          "count": 5,
+          "mean": 2103270.4,
+          "median": 2617728.0,
+          "sum": 10516352.0
+        },
+        "tokens_cache_write": {
+          "count": 5,
+          "mean": 0.0,
+          "median": 0.0,
+          "sum": 0.0
+        },
+        "tokens_input": {
+          "count": 5,
+          "mean": 2307876.6,
+          "median": 2860098.0,
+          "sum": 11539383.0
+        },
+        "tokens_output": {
+          "count": 5,
+          "mean": 104789.0,
+          "median": 123888.0,
+          "sum": 523945.0
+        },
+        "tokens_total": {
+          "count": 5,
+          "mean": 2412665.6,
+          "median": 3002072.0,
+          "sum": 12063328.0
+        }
+      },
+      "missing_attempts": 0,
+      "unknown_costs": 0
+    }
+  },
+  "overall": {
+    "cost_complete": true,
+    "count": 50,
+    "metrics": {
+      "cost_total": {
+        "count": 50,
+        "mean": 0.072,
+        "median": 0.0502,
+        "sum": 3.6009
+      },
+      "execution_time": {
+        "count": 50,
+        "mean": 475.229,
+        "median": 372.5297,
+        "sum": 23761.4502
+      },
+      "maximum_context": {
+        "count": 50,
+        "mean": 31967.3,
+        "median": 27630.0,
+        "sum": 1598365.0
+      },
+      "tokens_cache_read": {
+        "count": 50,
+        "mean": 871144.64,
+        "median": 599872.0,
+        "sum": 43557232.0
+      },
+      "tokens_cache_write": {
+        "count": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "sum": 0.0
+      },
+      "tokens_input": {
+        "count": 50,
+        "mean": 995147.02,
+        "median": 711927.5,
+        "sum": 49757351.0
+      },
+      "tokens_output": {
+        "count": 50,
+        "mean": 54564.88,
+        "median": 38784.0,
+        "sum": 2728244.0
+      },
+      "tokens_total": {
+        "count": 50,
+        "mean": 1049711.9,
+        "median": 738837.5,
+        "sum": 52485595.0
+      }
+    },
+    "missing_attempts": 0,
+    "unknown_costs": 0
+  },
+  "repetitions": 5
+}

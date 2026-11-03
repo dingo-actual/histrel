@@ -1,0 +1,26 @@
+{
+  "read": {
+    "count": 7,
+    "successes": 6,
+    "failures": 1,
+    "total_elapsed_ms": 1
+  },
+  "list_dir": {
+    "count": 1,
+    "successes": 1,
+    "failures": 0,
+    "total_elapsed_ms": 0
+  },
+  "bash": {
+    "count": 80,
+    "successes": 72,
+    "failures": 8,
+    "total_elapsed_ms": 42012
+  },
+  "edit": {
+    "count": 15,
+    "successes": 12,
+    "failures": 3,
+    "total_elapsed_ms": 23400
+  }
+}
