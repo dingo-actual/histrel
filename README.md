@@ -267,7 +267,7 @@ the cache miss, the catalog entry is used. Verify its numbers after changing
 
 ## Benchmark Results
 
-The following are results from five independent runs of ten SWE-bench Verified instances, each run using Histrel and a comparable ReAct agent loop.
+The following are results from five independent runs of ten SWE-bench Verified instances, each run using Histrel and a comparable ReAct agent loop. All results used GLM 5.3 Flash.
 
 ### ReAct
 
